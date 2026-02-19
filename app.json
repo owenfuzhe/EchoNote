@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "EchoNotes",
+    "slug": "echonotes",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "echonotes",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#6366F1"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        { "cameraPermission": "EchoNotes needs camera access to capture images for your notes." }
+      ],
+      [
+        "expo-av",
+        { "microphonePermission": "EchoNotes needs microphone access to record voice notes." }
+      ],
+      [
+        "expo-image-picker",
+        { "photosPermission": "EchoNotes needs photo library access to attach images to your notes." }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.echonotes.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#6366F1"
+      },
+      "package": "com.echonotes.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
