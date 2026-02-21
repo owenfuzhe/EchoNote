@@ -2,6 +2,7 @@ export const colors = {
   primary: '#6366F1',
   primaryLight: '#818CF8',
   primaryDark: '#4338CA',
+  error: '#EF4444',
 
   // Per-cell-type accent colors
   cell: {
@@ -12,6 +13,7 @@ export const colors = {
     todo: '#EF4444',        // red
     chart: '#3B82F6',       // blue
     correlation: '#06B6D4', // cyan
+    link: '#EC4899',        // pink
   },
 
   light: {

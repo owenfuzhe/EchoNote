@@ -30,7 +30,7 @@ const defaultProviders = Object.fromEntries(
     {
       id,
       model: PROVIDER_META[id].defaultModel,
-      enabled: id === 'anthropic',
+      enabled: id === 'zai',
       baseUrl: id === 'ollama' ? 'http://localhost:11434' : undefined,
     },
   ])
@@ -39,7 +39,7 @@ const defaultProviders = Object.fromEntries(
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      activeProviderId: 'anthropic',
+      activeProviderId: 'zai',
       providers: defaultProviders,
       voiceLanguage: 'auto',
       voiceTranscriptionProvider: 'openai_whisper',
@@ -95,19 +95,12 @@ export async function saveProviderApiKey(id: LLMProviderId, key: string) {
 export async function loadProviderApiKey(id: LLMProviderId): Promise<string | null> {
   const envKey = ENV_KEY_MAP[id]
   
-  // Check window.importMetaEnv for web build
-  if (typeof window !== 'undefined' && (window as any).importMetaEnv) {
-    const globalEnv = (window as any).importMetaEnv
-    if (envKey && globalEnv[envKey]) {
-      return globalEnv[envKey]
+  if (envKey) {
+    const envValue = process.env[envKey]
+    if (envValue) {
+      return envValue
     }
   }
   
-  // Check import.meta.env for other environments
-  if (envKey && typeof import.meta !== 'undefined' && import.meta.env?.[envKey]) {
-    return import.meta.env[envKey]
-  }
-  
-  // Fallback to secure storage
   return loadSecret(providerKeyStorageId(id))
 }

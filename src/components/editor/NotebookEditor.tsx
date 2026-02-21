@@ -1,22 +1,29 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
 import { View, TouchableOpacity, Text, StyleSheet, useColorScheme, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, ScrollView } from 'react-native'
-import { Cell, CellType, AIOutputCellData, TextCellData, VoiceCellData } from '@/types/cell'
+import { Cell, CellType, AIOutputCellData, TextCellData, VoiceCellData, LinkCellData } from '@/types/cell'
 import { colors, spacing, radius, font } from '@/components/ui/theme'
-import { useLLM } from '@/hooks/use-llm'
+import { useLLM, AnalyzeResult } from '@/hooks/use-llm'
 import { useNotebookStore } from '@/store/notebook-store'
 import { useVoice } from '@/hooks/use-voice'
+import { LinkCell } from '@/components/cells'
 
 interface Props {
   notebookId: string
+  onAIResult?: (result: AnalyzeResult) => void
 }
 
-export default function NotebookEditor({ notebookId }: Props) {
+export interface NotebookEditorRef {
+  triggerAI: () => void
+  isProcessing: boolean
+}
+
+const NotebookEditor = forwardRef<NotebookEditorRef, Props>(({ notebookId, onAIResult }, ref) => {
   const scheme = useColorScheme()
   const isDark = scheme === 'dark'
   const theme = isDark ? colors.dark : colors.light
 
-  const { activeCells, addCell, updateCell, persistCell, deleteCell } = useNotebookStore()
-  const { analyzeIntent } = useLLM()
+  const { activeCells, addCell, updateCell, persistCell } = useNotebookStore()
+  const { analyze } = useLLM()
   const { startRecording, stopRecording, isRecording, transcription, state, durationMs, error: voiceError } = useVoice()
   
   const [textInput, setTextInput] = useState('')
@@ -64,7 +71,7 @@ export default function NotebookEditor({ notebookId }: Props) {
         const cell = await addCell(notebookId, 'voice')
         updateCell(cell.id, { 
           transcription: result.transcription, 
-          duration_ms: result.duration ?? 0 
+          duration_ms: 0 
         } as Partial<VoiceCellData>)
         await persistCell({ ...cell, transcription: result.transcription } as Cell)
         setTimeout(() => scrollViewRef.current?.scrollToEnd(), 100)
@@ -91,51 +98,120 @@ export default function NotebookEditor({ notebookId }: Props) {
       
       if (!allContent) return
 
+      const result: AnalyzeResult = await analyze(allContent)
+      
+      const formattedContent = formatAnalyzeResult(result)
+
       const outputCell = await addCell(notebookId, 'ai_output')
       updateCell(outputCell.id, {
-        is_streaming: true,
-        content: '',
-      } as Partial<AIOutputCellData>)
-
-      const result = await analyzeIntent(allContent)
-      const fullContent = result.intent + 
-        (result.action_items.length ? '\n\n**待办事项:**\n' + result.action_items.map(a => `- ${a.text}`).join('\n') : '') +
-        (result.suggestions.length ? '\n\n**建议:**\n' + result.suggestions.map(s => `- ${s}`).join('\n') : '')
-
-      updateCell(outputCell.id, {
-        content: fullContent,
+        content: formattedContent,
         is_streaming: false,
-        structured: result,
-        provider: 'anthropic',
-        model: 'claude-sonnet-4-6',
-      } as Partial<AIOutputCellData>)
-      await persistCell({ ...outputCell, content: fullContent, structured: result } as Cell)
+        structured: result as any,
+        provider: 'zai',
+        model: 'glm-5',
+      } as any)
+      await persistCell({ ...outputCell, content: formattedContent, structured: result as any } as any)
+      
+      if (onAIResult) {
+        onAIResult(result)
+      }
+      
       setTimeout(() => scrollViewRef.current?.scrollToEnd(), 100)
     } catch (e: any) {
       console.error('AI process error:', e)
     } finally {
       setIsProcessing(false)
     }
-  }, [activeCells, notebookId, analyzeIntent, addCell, updateCell, persistCell])
+  }, [activeCells, notebookId, analyze, addCell, updateCell, persistCell, onAIResult])
+
+  useImperativeHandle(ref, () => ({
+    triggerAI: handleAIProcess,
+    get isProcessing() { return isProcessing }
+  }), [handleAIProcess, isProcessing])
 
   const renderDocument = () => {
     const elements: React.ReactNode[] = []
     let keyIndex = 0
     
-    activeCells.forEach((cell, index) => {
+    activeCells.forEach((cell) => {
+      if (cell.type === 'link') {
+        elements.push(
+          <View key={`cell-${keyIndex++}`} style={styles.linkCellWrap}>
+            <LinkCell cell={cell as LinkCellData} />
+          </View>
+        )
+        elements.push(<View key={`divider-${keyIndex++}`} style={styles.divider} />)
+        return
+      }
+      
       const content = extractCellContent(cell)
       if (!content) return
       
       if (cell.type === 'ai_output') {
+        const structured = cell.structured as any
         elements.push(
           <View key={`cell-${keyIndex++}`} style={styles.aiBlock}>
             <View style={styles.aiHeader}>
               <Text style={styles.aiIcon}>✨</Text>
               <Text style={styles.aiLabel}>AI 分析</Text>
             </View>
-            <Text style={[styles.aiContent, { color: theme.text }]}>
-              {content}
-            </Text>
+            
+            {structured ? (
+              <>
+                {structured.summary && (
+                  <Text style={[styles.aiSummary, { color: theme.text }]}>
+                    {structured.summary}
+                  </Text>
+                )}
+                
+                {structured.atomic_ideas && structured.atomic_ideas.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>💭 想法拆解</Text>
+                    {(structured.atomic_ideas as any[]).map((idea: any, i: number) => (
+                      <View key={i} style={styles.ideaRow}>
+                        <Text style={styles.ideaType}>{getIdeaTypeEmoji(idea.type)}</Text>
+                        <Text style={[styles.ideaContent, { color: theme.text }]}>{idea.content}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {structured.insights && structured.insights.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>💡 洞察</Text>
+                    {(structured.insights as any[]).map((insight: any, i: number) => (
+                      <View key={i} style={styles.insightRow}>
+                        <Text style={styles.insightType}>{getInsightTypeEmoji(insight.type)}</Text>
+                        <Text style={[styles.insightContent, { color: theme.text }]}>{insight.content}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {structured.action_items && structured.action_items.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>✅ 待办事项</Text>
+                    {(structured.action_items as any[]).map((item: any, i: number) => (
+                      <View key={i} style={styles.actionRow}>
+                        <Text style={styles.actionPriority}>{getPriorityEmoji(item.priority)}</Text>
+                        <Text style={[styles.actionContent, { color: theme.text }]}>{item.text}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {structured.follow_up && (
+                  <View style={styles.followUpSection}>
+                    <Text style={styles.followUpLabel}>🤔 AI 追问</Text>
+                    <Text style={[styles.followUpText, { color: theme.text }]}>
+                      {structured.follow_up}
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <Text style={[styles.aiContent, { color: theme.text }]}>{content}</Text>
+            )}
           </View>
         )
         elements.push(<View key={`divider-${keyIndex++}`} style={styles.divider} />)
@@ -211,22 +287,9 @@ export default function NotebookEditor({ notebookId }: Props) {
           >
             <Text style={styles.toolBtnText}>{isRecording ? '⏹️' : '🎙️'}</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.aiBtn, (isProcessing || activeCells.length === 0) && styles.aiBtnDisabled]}
-            onPress={handleAIProcess}
-            disabled={isProcessing || activeCells.length === 0}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.aiBtnText}>✨ AI</Text>
-            )}
-          </TouchableOpacity>
         </View>
       </View>
 
-      {/* 录音弹窗 */}
       <Modal
         visible={showRecordingModal}
         transparent={true}
@@ -258,10 +321,18 @@ export default function NotebookEditor({ notebookId }: Props) {
                   {formatDuration(durationMs)}
                 </Text>
               </>
+            ) : state === 'idle' ? (
+              <>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>准备录音...</Text>
+                <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 20 }} />
+                <Text style={[styles.duration, { color: theme.textSecondary }]}>
+                  正在请求麦克风权限
+                </Text>
+              </>
             ) : (
               <>
                 <Text style={[styles.modalTitle, { color: theme.text }]}>
-                  {isRecording ? '正在录音...' : '准备录音...'}
+                  正在录音...
                 </Text>
                 
                 <View style={styles.recordingIndicator}>
@@ -302,15 +373,89 @@ export default function NotebookEditor({ notebookId }: Props) {
       </Modal>
     </KeyboardAvoidingView>
   )
-}
+})
+
+NotebookEditor.displayName = 'NotebookEditor'
+
+export default NotebookEditor
 
 function extractCellContent(cell: Cell): string {
   switch (cell.type) {
     case 'text': return cell.content
     case 'voice': return cell.transcription ?? ''
     case 'ai_output': return cell.content
+    case 'link': return cell.title || cell.url
     default: return ''
   }
+}
+
+function formatAnalyzeResult(result: AnalyzeResult): string {
+  let content = ''
+  
+  if (result.summary) {
+    content += `**摘要:** ${result.summary}\n\n`
+  }
+  
+  if (result.atomic_ideas && result.atomic_ideas.length > 0) {
+    content += `**想法拆解:**\n`
+    result.atomic_ideas.forEach(idea => {
+      content += `- ${getIdeaTypeEmoji(idea.type)} ${idea.content}\n`
+    })
+    content += '\n'
+  }
+  
+  if (result.insights && result.insights.length > 0) {
+    content += `**洞察:**\n`
+    result.insights.forEach(insight => {
+      content += `- ${getInsightTypeEmoji(insight.type)} ${insight.content}\n`
+    })
+    content += '\n'
+  }
+  
+  if (result.action_items && result.action_items.length > 0) {
+    content += `**待办事项:**\n`
+    result.action_items.forEach(item => {
+      content += `- ${getPriorityEmoji(item.priority)} ${item.text}\n`
+    })
+    content += '\n'
+  }
+  
+  if (result.follow_up) {
+    content += `**AI 追问:** ${result.follow_up}`
+  }
+  
+  return content.trim()
+}
+
+function getIdeaTypeEmoji(type: string): string {
+  const map: Record<string, string> = {
+    fact: '📌',
+    thought: '💭',
+    question: '❓',
+    plan: '📋',
+    feeling: '❤️',
+    commitment: '🤝',
+  }
+  return map[type] || '•'
+}
+
+function getInsightTypeEmoji(type: string): string {
+  const map: Record<string, string> = {
+    pattern: '🔄',
+    risk: '⚠️',
+    opportunity: '🌟',
+    gap: '🔍',
+  }
+  return map[type] || '•'
+}
+
+function getPriorityEmoji(priority: string): string {
+  const map: Record<string, string> = {
+    high: '🔴',
+    medium: '🟡',
+    low: '🟢',
+  }
+  return map[priority] || '○'
 }
 
 const styles = StyleSheet.create({
@@ -328,6 +473,9 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     marginBottom: spacing.md,
   },
+  linkCellWrap: {
+    marginVertical: spacing.sm,
+  },
   aiBlock: {
     backgroundColor: colors.primary + '10',
     borderRadius: radius.lg,
@@ -339,7 +487,7 @@ const styles = StyleSheet.create({
   aiHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   aiIcon: {
     fontSize: 16,
@@ -350,9 +498,83 @@ const styles = StyleSheet.create({
     fontWeight: font.weights.semibold,
     color: colors.primary,
   },
+  aiSummary: {
+    fontSize: font.sizes.md,
+    lineHeight: 24,
+    fontWeight: font.weights.medium,
+    marginBottom: spacing.md,
+  },
   aiContent: {
     fontSize: font.sizes.md,
     lineHeight: 24,
+  },
+  section: {
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: font.sizes.sm,
+    fontWeight: font.weights.semibold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+  ideaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xs,
+  },
+  ideaType: {
+    width: 24,
+    fontSize: 14,
+  },
+  ideaContent: {
+    flex: 1,
+    fontSize: font.sizes.sm,
+    lineHeight: 20,
+  },
+  insightRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xs,
+  },
+  insightType: {
+    width: 24,
+    fontSize: 14,
+  },
+  insightContent: {
+    flex: 1,
+    fontSize: font.sizes.sm,
+    lineHeight: 20,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xs,
+  },
+  actionPriority: {
+    width: 24,
+    fontSize: 14,
+  },
+  actionContent: {
+    flex: 1,
+    fontSize: font.sizes.sm,
+    lineHeight: 20,
+  },
+  followUpSection: {
+    backgroundColor: colors.primary + '20',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  followUpLabel: {
+    fontSize: font.sizes.xs,
+    fontWeight: font.weights.semibold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+  followUpText: {
+    fontSize: font.sizes.sm,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
   divider: {
     height: 1,
@@ -407,23 +629,6 @@ const styles = StyleSheet.create({
   recordingBtn: {
     backgroundColor: colors.cell.voice,
   },
-  aiBtn: {
-    paddingHorizontal: spacing.lg,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  aiBtnDisabled: {
-    opacity: 0.5,
-  },
-  aiBtnText: {
-    color: '#fff',
-    fontSize: font.sizes.md,
-    fontWeight: font.weights.semibold,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -461,31 +666,30 @@ const styles = StyleSheet.create({
     height: 25,
   },
   duration: {
-    fontSize: font.sizes.xxl,
+    fontSize: font.sizes.xl,
     fontWeight: font.weights.bold,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   transcriptionPreview: {
-    fontSize: font.sizes.md,
+    fontSize: font.sizes.sm,
     textAlign: 'center',
     marginBottom: spacing.lg,
-    fontStyle: 'italic',
+    paddingHorizontal: spacing.md,
   },
   errorText: {
-    fontSize: font.sizes.md,
+    fontSize: font.sizes.sm,
     textAlign: 'center',
     marginBottom: spacing.lg,
-    lineHeight: 22,
   },
   modalActions: {
     flexDirection: 'row',
     gap: spacing.md,
-    width: '100%',
   },
   modalBtn: {
-    flex: 1,
-    padding: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     borderRadius: radius.md,
+    minWidth: 80,
     alignItems: 'center',
   },
   cancelBtn: {
@@ -493,7 +697,6 @@ const styles = StyleSheet.create({
   },
   cancelBtnText: {
     color: '#666',
-    fontSize: font.sizes.md,
     fontWeight: font.weights.medium,
   },
   stopBtn: {
@@ -501,7 +704,6 @@ const styles = StyleSheet.create({
   },
   stopBtnText: {
     color: '#fff',
-    fontSize: font.sizes.md,
     fontWeight: font.weights.semibold,
   },
 })

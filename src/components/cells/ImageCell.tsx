@@ -28,7 +28,7 @@ export default function ImageCell({ cell, isDark, onUpdate }: Props) {
 
     try {
       const base64 = asset.base64 ?? (await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64',
       }))
       const analysis = await analyzeImage(base64)
       onUpdate({ analysis, is_analyzing: false })

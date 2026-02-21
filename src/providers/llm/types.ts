@@ -79,8 +79,8 @@ export const PROVIDER_META: Record<LLMProviderId, ProviderMeta> = {
   },
   zai: {
     name: 'Zhipu AI (GLM)',
-    models: ['glm-4', 'glm-4v', 'glm-4-flash', 'glm-3-turbo'],
-    defaultModel: 'glm-4',
+    models: ['glm-5', 'glm-4', 'glm-4v', 'glm-4-flash', 'glm-3-turbo'],
+    defaultModel: 'glm-5',
     supportsVision: true,
     supportsEmbeddings: true,
   },

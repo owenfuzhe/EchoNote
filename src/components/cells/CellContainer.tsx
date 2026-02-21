@@ -26,6 +26,7 @@ const CELL_ICONS: Record<CellType, string> = {
   todo: '☑️',
   chart: '📊',
   correlation: '🔗',
+  link: '🔗',
 }
 
 interface Props {

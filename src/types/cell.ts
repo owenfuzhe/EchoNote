@@ -6,6 +6,7 @@ export type CellType =
   | 'todo'
   | 'chart'
   | 'correlation'
+  | 'link'
 
 export interface BaseCell {
   id: string
@@ -112,6 +113,16 @@ export interface CorrelationCellData extends BaseCell {
   is_loading: boolean
 }
 
+// ── Link ────────────────────────────────────────────────────────────────────
+export interface LinkCellData extends BaseCell {
+  type: 'link'
+  url: string
+  title: string | null
+  favicon: string | null
+  content: string | null
+  published_time: string | null
+}
+
 // ── Union ───────────────────────────────────────────────────────────────────
 export type Cell =
   | TextCellData
@@ -121,6 +132,7 @@ export type Cell =
   | TodoCellData
   | ChartCellData
   | CorrelationCellData
+  | LinkCellData
 
 export type CellContent = Cell['type'] extends infer T
   ? T extends Cell['type']

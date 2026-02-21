@@ -1,7 +1,9 @@
 module.exports = function (api) {
   api.cache(true)
   return {
-    presets: ['babel-preset-expo'],
+    presets: [
+      'babel-preset-expo',
+    ],
     plugins: [
       [
         'module-resolver',
@@ -10,17 +12,10 @@ module.exports = function (api) {
           alias: { '@': './src' },
         },
       ],
-      [
-        'transform-import-meta',
-        {
-          replace: ({ meta, propertyName }) => {
-            if (propertyName === 'env') {
-              return `({ MODE: 'production' })`
-            }
-            return meta
-          },
-        },
-      ],
+      ['@babel/plugin-transform-runtime', {
+        regenerator: false,
+        useESModules: false,
+      }],
       'react-native-reanimated/plugin',
     ],
   }

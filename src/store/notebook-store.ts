@@ -35,7 +35,7 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     set({ isLoading: true, error: null })
     const { data, error } = await supabase
       .from('notebooks')
-      .select('id, title, cover_color, updated_at, description')
+      .select('id, title, cover_color, updated_at, description, tags')
       .order('updated_at', { ascending: false })
     if (error) { set({ error: error.message, isLoading: false }); return }
     set({
@@ -46,6 +46,7 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         updated_at: n.updated_at,
         preview: n.description,
         cell_count: 0,
+        tags: n.tags || [],
       })),
       isLoading: false,
     })
@@ -200,6 +201,16 @@ function transformCellFromDB(row: any): Cell {
         related_notes: content.related_notes || [],
         is_loading: content.is_loading || false,
       }
+    case 'link':
+      return {
+        ...base,
+        type: 'link',
+        url: content.url || '',
+        title: content.title || null,
+        favicon: content.favicon || null,
+        content: content.content || null,
+        published_time: content.published_time || null,
+      }
     default:
       return { ...base, type: 'text', content: '' }
   }
@@ -214,6 +225,7 @@ function getDefaultContent(type: CellType): object {
     case 'todo': return { title: 'Tasks', items: [] }
     case 'chart': return { title: 'Chart', chart_type: 'bar', data: [] }
     case 'correlation': return { query: '', related_notes: [], is_loading: false }
+    case 'link': return { url: '', title: null, favicon: null, content: null, published_time: null }
     default: return {}
   }
 }
@@ -227,6 +239,7 @@ function extractContentForDB(cell: Cell): object {
     case 'todo': return { title: cell.title, items: cell.items }
     case 'chart': return { title: cell.title, chart_type: cell.chart_type, data: cell.data, x_label: cell.x_label, y_label: cell.y_label, color: cell.color }
     case 'correlation': return { query: cell.query, related_notes: cell.related_notes, is_loading: cell.is_loading }
+    case 'link': return { url: cell.url, title: cell.title, favicon: cell.favicon, content: cell.content, published_time: cell.published_time }
     default: return {}
   }
 }

@@ -12,7 +12,7 @@ export class AnthropicProvider implements ILLMProvider {
     this.model = model
   }
 
-  private toAnthropicMessages(messages: Message[]) {
+  private toAnthropicMessages(messages: Message[]): Anthropic.MessageParam[] {
     return messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({
@@ -25,7 +25,11 @@ export class AnthropicProvider implements ILLMProvider {
                   ? { type: 'text' as const, text: part.text! }
                   : {
                       type: 'image' as const,
-                      source: { type: 'url' as const, url: part.image_url!.url },
+                      source: { 
+                        type: 'base64' as const, 
+                        data: part.image_url!.url,
+                        media_type: 'image/jpeg' as const
+                      },
                     }
               ),
       }))

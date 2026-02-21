@@ -15,6 +15,7 @@ export interface NotebookSummary {
   updated_at: string
   preview: string | null
   cell_count: number
+  tags: string[]
 }
 
 export const COVER_COLORS = [

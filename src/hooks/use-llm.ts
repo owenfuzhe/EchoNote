@@ -3,19 +3,77 @@ import { createProvider } from '@/providers/llm'
 import { ILLMProvider, Message, ChatOptions } from '@/providers/llm/types'
 import { useSettingsStore, loadProviderApiKey } from '@/store/settings-store'
 
-// Prompts
-const INTENT_SYSTEM = `You are EchoNotes AI. Analyze the user's input and respond in JSON with this shape:
-{
-  "intent": "one-line summary of what the user wants to accomplish",
-  "action_items": [{ "id": "uuid", "text": "...", "priority": "low|medium|high", "completed": false }],
-  "suggestions": ["suggestion 1", "suggestion 2"],
-  "tags": ["tag1", "tag2"]
-}
-Be concise. Support Chinese and English equally well. Return only valid JSON.`
+const ANALYZE_SYSTEM = `你是 EchoNotes AI，一个智能笔记助手。分析用户输入并返回结构化 JSON。
 
-const IMAGE_SYSTEM = `You are EchoNotes AI. Analyze this image and describe what you see in 1-3 sentences.
-If it contains text, transcribe it. If it contains a diagram or chart, explain it.
-Respond in the same language as any text in the image (Chinese or English).`
+## 输出格式
+{
+  "summary": "一句话总结用户内容的核心意图",
+  "atomic_ideas": [
+    {
+      "content": "原子想法内容",
+      "type": "fact|thought|question|plan|feeling|commitment"
+    }
+  ],
+  "insights": [
+    {
+      "type": "pattern|risk|opportunity|gap",
+      "content": "洞察内容"
+    }
+  ],
+  "action_items": [
+    {
+      "text": "待办事项",
+      "priority": "high|medium|low"
+    }
+  ],
+  "follow_up": "一个反向追问，帮助用户深入思考"
+}
+
+## 类型说明
+- fact: 客观事实
+- thought: 主观想法
+- question: 疑问困惑
+- plan: 计划打算
+- feeling: 情绪感受
+- commitment: 承诺约定
+
+## 洞察类型
+- pattern: 发现的行为模式
+- risk: 潜在风险提示
+- opportunity: 可把握的机会
+- gap: 遗漏或不足
+
+## 要求
+1. 简洁精准，不要冗余
+2. 中英文同等支持
+3. 只返回有效 JSON，不要其他文字`
+
+const IMAGE_SYSTEM = `你是 EchoNotes AI。分析图片并用 1-3 句话描述。
+如果包含文字，请转录。如果是图表，请解释。
+使用图片中文字的语言回复（中文或英文）。`
+
+export interface AtomicIdea {
+  content: string
+  type: 'fact' | 'thought' | 'question' | 'plan' | 'feeling' | 'commitment'
+}
+
+export interface Insight {
+  type: 'pattern' | 'risk' | 'opportunity' | 'gap'
+  content: string
+}
+
+export interface ActionItem {
+  text: string
+  priority: 'high' | 'medium' | 'low'
+}
+
+export interface AnalyzeResult {
+  summary: string
+  atomic_ideas: AtomicIdea[]
+  insights: Insight[]
+  action_items: ActionItem[]
+  follow_up: string
+}
 
 export function useLLM() {
   const { activeProviderId, providers } = useSettingsStore()
@@ -34,25 +92,25 @@ export function useLLM() {
     return providerRef.current
   }, [activeProviderId, providers])
 
-  /** Analyze text/voice content → intent + action items */
-  const analyzeIntent = useCallback(
-    async (content: string): Promise<{
-      intent: string
-      action_items: Array<{ id: string; text: string; priority: 'low' | 'medium' | 'high'; completed: boolean }>
-      suggestions: string[]
-      tags: string[]
-    }> => {
+  const analyze = useCallback(
+    async (content: string): Promise<AnalyzeResult> => {
       const provider = await getProvider()
       const messages: Message[] = [{ role: 'user', content }]
-      const raw = await provider.chat(messages, { systemPrompt: INTENT_SYSTEM, temperature: 0.3 })
-      // Strip possible markdown fences
+      const raw = await provider.chat(messages, { systemPrompt: ANALYZE_SYSTEM, temperature: 0.5 })
       const json = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      return JSON.parse(json)
+      const result = JSON.parse(json)
+      
+      if (!result.summary) result.summary = ''
+      if (!result.atomic_ideas) result.atomic_ideas = []
+      if (!result.insights) result.insights = []
+      if (!result.action_items) result.action_items = []
+      if (!result.follow_up) result.follow_up = ''
+      
+      return result
     },
     [getProvider]
   )
 
-  /** Stream a general chat response (for interactive cells) */
   async function* streamChat(
     messages: Message[],
     options?: ChatOptions
@@ -61,7 +119,6 @@ export function useLLM() {
     yield* provider.chatStream(messages, options)
   }
 
-  /** Analyze an image → description string */
   const analyzeImage = useCallback(
     async (imageBase64: string): Promise<string> => {
       const provider = await getProvider()
@@ -79,7 +136,6 @@ export function useLLM() {
     [getProvider]
   )
 
-  /** Get embeddings for semantic memory (uses first embedding-capable provider) */
   const embed = useCallback(
     async (text: string): Promise<number[]> => {
       const provider = await getProvider()
@@ -88,5 +144,5 @@ export function useLLM() {
     [getProvider]
   )
 
-  return { analyzeIntent, analyzeImage, streamChat, embed }
+  return { analyze, analyzeImage, streamChat, embed }
 }

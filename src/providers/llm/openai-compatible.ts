@@ -12,6 +12,12 @@ const BASE_URLS: Partial<Record<LLMProviderId, string>> = {
   openai: 'https://api.openai.com/v1',
   kimi: 'https://api.moonshot.cn/v1',
   qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  zai: 'https://open.bigmodel.cn/api/coding/paas/v4/',
+}
+
+const EMBEDDING_BASE_URLS: Partial<Record<LLMProviderId, string>> = {
+  openai: 'https://api.openai.com/v1',
+  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   zai: 'https://open.bigmodel.cn/api/paas/v4/',
 }
 
@@ -25,6 +31,7 @@ export class OpenAICompatibleProvider implements ILLMProvider {
   readonly id: LLMProviderId
   readonly name: string
   private client: OpenAI
+  private embeddingClient: OpenAI | null = null
   private model: string
 
   constructor(
@@ -42,23 +49,45 @@ export class OpenAICompatibleProvider implements ILLMProvider {
       baseURL: customBaseUrl ?? BASE_URLS[providerId],
       dangerouslyAllowBrowser: true,
     })
+    
+    const embBaseUrl = EMBEDDING_BASE_URLS[providerId]
+    if (embBaseUrl && embBaseUrl !== (customBaseUrl ?? BASE_URLS[providerId])) {
+      this.embeddingClient = new OpenAI({
+        apiKey,
+        baseURL: embBaseUrl,
+        dangerouslyAllowBrowser: true,
+      })
+    }
   }
 
-  private convert(messages: Message[]) {
-    return messages.map((m) => ({
-      role: m.role,
-      content:
-        typeof m.content === 'string'
-          ? m.content
-          : m.content.map((p) =>
-              p.type === 'text'
-                ? { type: 'text' as const, text: p.text! }
-                : { type: 'image_url' as const, image_url: { url: p.image_url!.url } }
-            ),
-    }))
+  private convert(messages: Message[]): OpenAI.ChatCompletionMessageParam[] {
+    return messages.map((m) => {
+      if (m.role === 'user') {
+        return {
+          role: 'user' as const,
+          content: typeof m.content === 'string'
+            ? m.content
+            : m.content.map((p) =>
+                p.type === 'text'
+                  ? { type: 'text' as const, text: p.text! }
+                  : { type: 'image_url' as const, image_url: { url: p.image_url!.url } }
+              ),
+        }
+      } else if (m.role === 'assistant') {
+        return {
+          role: 'assistant' as const,
+          content: typeof m.content === 'string' ? m.content : '',
+        }
+      } else {
+        return {
+          role: 'system' as const,
+          content: typeof m.content === 'string' ? m.content : '',
+        }
+      }
+    })
   }
 
-  private withSystem(messages: Message[], systemPrompt?: string) {
+  private withSystem(messages: Message[], systemPrompt?: string): OpenAI.ChatCompletionMessageParam[] {
     if (!systemPrompt) return this.convert(messages)
     return [
       { role: 'system' as const, content: systemPrompt },
@@ -96,7 +125,8 @@ export class OpenAICompatibleProvider implements ILLMProvider {
   async embed(text: string): Promise<number[]> {
     const embModel = EMBEDDING_MODELS[this.id]
     if (!embModel) throw new Error(`${this.name} does not support embeddings`)
-    const res = await this.client.embeddings.create({ model: embModel, input: text })
+    const client = this.embeddingClient ?? this.client
+    const res = await client.embeddings.create({ model: embModel, input: text })
     return res.data[0].embedding
   }
 }

@@ -71,14 +71,15 @@ export function useVoice() {
 
   const startRecording = useCallback(async () => {
     try {
-      setState('recording')
       setDurationMs(0)
       setTranscription('')
       setError(null)
-      isRecordingRef.current = true
       finalTranscriptRef.current = ''
       
       if (Platform.OS === 'web') {
+        setState('recording')
+        isRecordingRef.current = true
+        
         const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition
         
         if (!SpeechRecognitionClass) {
@@ -146,16 +147,31 @@ export function useVoice() {
         timerRef.current = setInterval(() => setDurationMs((d) => d + 100), 100)
       } else {
         // Native: 使用 expo-av
-        await Audio.requestPermissionsAsync()
+        console.log('[Voice] Requesting permissions...')
+        const { status } = await Audio.requestPermissionsAsync()
+        console.log('[Voice] Permission status:', status)
+        
+        if (status !== 'granted') {
+          throw new Error('麦克风权限被拒绝')
+        }
+        
+        console.log('[Voice] Setting audio mode...')
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
         })
+        
+        console.log('[Voice] Creating recording...')
         const { recording } = await Audio.Recording.createAsync(
           Audio.RecordingOptionsPresets.HIGH_QUALITY
         )
+        console.log('[Voice] Recording created:', recording ? 'success' : 'failed')
+        
         recordingRef.current = recording
+        isRecordingRef.current = true
+        setState('recording')
         timerRef.current = setInterval(() => setDurationMs((d) => d + 100), 100)
+        console.log('[Voice] Recording started successfully')
       }
     } catch (e: any) {
       console.error('Start recording error:', e)
@@ -249,7 +265,7 @@ async function transcribeWithGLM(uri: string): Promise<string> {
   const apiKey = await loadProviderApiKey('zai')
   if (!apiKey) throw new Error('请在设置中添加智谱 AI (GLM) API Key')
 
-  const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 })
+  const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' })
 
   const response = await fetch('https://open.bigmodel.cn/api/paas/v4/audio/transcriptions', {
     method: 'POST',
