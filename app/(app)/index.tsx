@@ -1,207 +1,294 @@
 import React, { useEffect, useState } from 'react'
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
-  useColorScheme, Alert, StatusBar,
+  useColorScheme, ScrollView, RefreshControl
 } from 'react-native'
 import { useRouter } from 'expo-router'
+import { colors, spacing, radius, font, layout } from '@/components/ui/theme'
 import { useNotebookStore } from '@/store/notebook-store'
-import { colors, spacing, radius, font } from '@/components/ui/theme'
-import AIAssistantModal from '@/components/AIAssistantModal'
+import { NotebookSummary } from '@/types/notebook'
+import { 
+  Mic, 
+  Headphones,
+  Clock,
+  Tag,
+  Bot,
+  Map
+} from 'lucide-react-native'
 
-export default function NotebooksScreen() {
+// 按日期分组
+const groupByDate = (notebooks: NotebookSummary[]) => {
+  const groups: Record<string, NotebookSummary[]> = {}
+  
+  notebooks.forEach(notebook => {
+    const date = new Date(notebook.updated_at)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    
+    let key: string
+    if (date.toDateString() === today.toDateString()) {
+      key = '今天'
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      key = '昨天'
+    } else {
+      key = date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })
+    }
+    
+    if (!groups[key]) groups[key] = []
+    groups[key].push(notebook)
+  })
+  
+  return groups
+}
+
+export default function HomeScreen() {
   const scheme = useColorScheme()
   const isDark = scheme === 'dark'
   const theme = isDark ? colors.dark : colors.light
   const router = useRouter()
-
-  const { notebooks, fetchNotebooks, deleteNotebook } = useNotebookStore()
-  const [showAIAssistant, setShowAIAssistant] = useState(false)
+  const { notebooks, fetchNotebooks } = useNotebookStore()
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => { fetchNotebooks() }, [])
 
-  const handleDelete = (id: string, title: string) => {
-    Alert.alert('Delete notebook', `Delete "${title}"? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteNotebook(id) },
-    ])
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await fetchNotebooks()
+    setRefreshing(false)
   }
+
+  const groupedNotes = groupByDate(notebooks)
+  const sortedDates = Object.keys(groupedNotes).sort((a, b) => {
+    if (a === '今天') return -1
+    if (b === '今天') return 1
+    if (a === '昨天') return -1
+    if (b === '昨天') return 1
+    return 0
+  })
+
+  const renderNoteCard = ({ item }: { item: NotebookSummary }) => (
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}
+      onPress={() => router.push(`/(app)/notebook/${item.id}`)}
+    >
+      <View style={styles.cardHeader}>
+        <View style={styles.tagContainer}>
+          {item.tags?.slice(0, 2).map((tag, idx) => (
+            <View key={idx} style={[styles.tagBadge, { backgroundColor: theme.bgTertiary }]}>
+              <Tag size={10} color={theme.textSecondary} />
+              <Text style={[styles.tagText, { color: theme.textSecondary }]}>{tag}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={[styles.timeText, { color: theme.textTertiary }]}>
+          {new Date(item.updated_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      </View>
+      
+      <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>
+        {item.title}
+      </Text>
+      
+      {item.preview && (
+        <Text style={[styles.cardPreview, { color: theme.textSecondary }]} numberOfLines={2}>
+          {item.preview}
+        </Text>
+      )}
+      
+      <View style={styles.cardFooter}>
+        <View style={styles.metaItem}>
+          <Headphones size={12} color={theme.textTertiary} />
+          <Text style={[styles.metaText, { color: theme.textTertiary }]}>15:32</Text>
+        </View>
+        <View style={styles.metaItem}>
+          <Text style={[styles.aiBadge, { color: colors.primary }]}>⚡ 3个待办</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  )
+
+  const renderDateGroup = (date: string, items: NotebookSummary[]) => (
+    <View key={date} style={styles.dateGroup}>
+      <Text style={[styles.dateLabel, { color: theme.textSecondary }]}>{date}</Text>
+      {items.map((item, idx) => (
+        <View key={item.id} style={idx !== items.length - 1 && styles.cardSpacing}>
+          {renderNoteCard({ item })}
+        </View>
+      ))}
+    </View>
+  )
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>EchoNotes</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.aiHeaderBtn}
-            onPress={() => setShowAIAssistant(true)}
-          >
-            <Text style={styles.aiHeaderIcon}>🤖</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.aiHeaderBtn}
-            onPress={() => router.push('/(app)/topic-map')}
-          >
-            <Text style={styles.aiHeaderIcon}>🗺️</Text>
-          </TouchableOpacity>
-        </View>
+      {/* 快捷操作栏 */}
+      <View style={[styles.quickActions, { backgroundColor: theme.bgSecondary }]}>
+        <TouchableOpacity 
+          style={styles.quickBtn}
+          onPress={() => router.push('/(app)/topic-map')}
+        >
+          <View style={[styles.quickIcon, { backgroundColor: colors.primaryLight }]}>
+            <Map size={20} color={colors.primary} />
+          </View>
+          <Text style={[styles.quickLabel, { color: theme.textSecondary }]}>主题地图</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.quickBtn}>
+          <View style={[styles.quickIcon, { backgroundColor: colors.primaryLight }]}>
+            <Bot size={20} color={colors.primary} />
+          </View>
+          <Text style={[styles.quickLabel, { color: theme.textSecondary }]}>AI助手</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
-      <TouchableOpacity 
-        style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }]}
-        onPress={() => setShowAIAssistant(true)}
-        activeOpacity={0.7}
+      {/* 内容列表 */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        <Text style={styles.searchIcon}>🔍</Text>
-        <Text style={[styles.searchPlaceholder, { color: theme.textTertiary }]}>
-          搜索或问 AI...
-        </Text>
-      </TouchableOpacity>
-
-      {/* Notebook Grid */}
-      <FlatList
-        data={notebooks}
-        keyExtractor={(n) => n.id}
-        numColumns={2}
-        contentContainerStyle={styles.grid}
-        columnWrapperStyle={styles.row}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: item.cover_color }]}
-            onPress={() => router.push(`/(app)/notebook/${item.id}`)}
-            onLongPress={() => handleDelete(item.id, item.title)}
-          >
-            <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.cardDate}>
-              {new Date(item.updated_at).toLocaleDateString()}
-            </Text>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
+        {notebooks.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🎙️</Text>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>No notebooks yet</Text>
+            <View style={[styles.emptyIconContainer, { backgroundColor: colors.primaryLight }]}>
+              <Mic size={32} color={colors.primary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>开始记录你的想法</Text>
             <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-              Tap the ✨ button below to capture your first thought
+              点击下方语音按钮，用语音快速记录
             </Text>
           </View>
-        }
-      />
-
-      {/* AI Float Button */}
-      <TouchableOpacity
-        style={[styles.aiFloatBtn, { backgroundColor: colors.primary }]}
-        onPress={() => setShowAIAssistant(true)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.aiFloatIcon}>🤖</Text>
-      </TouchableOpacity>
-
-      <AIAssistantModal 
-        visible={showAIAssistant} 
-        onClose={() => setShowAIAssistant(false)} 
-      />
+        ) : (
+          sortedDates.map(date => renderDateGroup(date, groupedNotes[date]))
+        )}
+      </ScrollView>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
+  container: {
+    flex: 1,
+  },
+  quickActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: spacing['4'],
+    gap: spacing['3'],
+  },
+  quickBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: 60,
-    paddingBottom: spacing.md,
+    gap: spacing['2'],
+    paddingVertical: spacing['2'],
+    paddingHorizontal: spacing['3'],
+    borderRadius: radius.md,
   },
-  title: { 
-    fontSize: font.sizes.xxl, 
-    fontWeight: font.weights.bold 
+  quickIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerRight: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: spacing.sm 
+  quickLabel: {
+    fontSize: font.sizes.sm,
+    fontWeight: '500',
   },
-  aiHeaderBtn: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  content: {
+    paddingHorizontal: spacing['4'],
+    paddingBottom: spacing['8'],
   },
-  aiHeaderIcon: { fontSize: 24 },
-  searchBar: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginHorizontal: spacing.lg, 
-    marginBottom: spacing.md, 
-    padding: spacing.md, 
-    borderRadius: radius.xl, 
-    borderWidth: 1 
+  dateGroup: {
+    marginBottom: spacing['4'],
   },
-  searchIcon: { 
-    fontSize: 18, 
-    marginRight: spacing.sm 
+  dateLabel: {
+    fontSize: font.sizes.sm,
+    fontWeight: '500',
+    marginBottom: spacing['3'],
   },
-  searchPlaceholder: { 
-    fontSize: font.sizes.md 
+  cardSpacing: {
+    marginBottom: spacing['3'],
   },
-  grid: { 
-    padding: spacing.md, 
-    paddingTop: 0 
+  card: {
+    borderRadius: radius.lg,
+    padding: spacing['4'],
+    borderWidth: 1,
   },
-  row: { 
-    gap: spacing.md, 
-    marginBottom: spacing.md 
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing['2'],
   },
-  card: { 
-    flex: 1, 
-    borderRadius: radius.xl, 
-    padding: spacing.lg, 
-    minHeight: 140, 
-    justifyContent: 'space-between' 
+  tagContainer: {
+    flexDirection: 'row',
+    gap: spacing['2'],
   },
-  cardTitle: { 
-    color: '#fff', 
-    fontSize: font.sizes.lg, 
-    fontWeight: font.weights.bold 
+  tagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: spacing['2'],
+    paddingVertical: 2,
+    borderRadius: radius.full,
   },
-  cardDate: { 
-    color: 'rgba(255,255,255,0.7)', 
-    fontSize: font.sizes.xs 
+  tagText: {
+    fontSize: 10,
+    fontWeight: '500',
   },
-  empty: { 
-    alignItems: 'center', 
-    paddingTop: 80, 
-    gap: spacing.sm 
+  timeText: {
+    fontSize: font.sizes.xs,
   },
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { 
-    fontSize: font.sizes.xl, 
-    fontWeight: font.weights.bold 
+  cardTitle: {
+    fontSize: font.sizes.lg,
+    fontWeight: '600',
+    marginBottom: spacing['1'],
   },
-  emptySubtitle: { 
-    fontSize: font.sizes.md, 
-    textAlign: 'center' 
+  cardPreview: {
+    fontSize: font.sizes.sm,
+    lineHeight: 20,
+    marginBottom: spacing['2'],
   },
-  aiFloatBtn: { 
-    position: 'absolute', 
-    right: spacing.lg, 
-    bottom: spacing.xl, 
-    width: 56, 
-    height: 56, 
-    borderRadius: 28, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 8, 
-    elevation: 8 
+  cardFooter: {
+    flexDirection: 'row',
+    gap: spacing['3'],
+    marginTop: spacing['1'],
   },
-  aiFloatIcon: { fontSize: 28 },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontSize: font.sizes.xs,
+  },
+  aiBadge: {
+    fontSize: font.sizes.xs,
+    fontWeight: '500',
+  },
+  // 空状态
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing['12'],
+  },
+  emptyIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing['4'],
+  },
+  emptyTitle: {
+    fontSize: font.sizes.xl,
+    fontWeight: '600',
+    marginBottom: spacing['2'],
+  },
+  emptySubtitle: {
+    fontSize: font.sizes.base,
+    textAlign: 'center',
+    paddingHorizontal: spacing['8'],
+  },
 })

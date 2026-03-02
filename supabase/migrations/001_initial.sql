@@ -8,6 +8,7 @@ create table notebooks (
   title       text not null,
   description text,
   cover_color text not null default '#6366F1',
+  tags        text[] default '{}',
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
