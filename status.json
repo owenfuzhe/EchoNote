@@ -1,0 +1,44 @@
+{
+  "project": "EchoNote",
+  "status": "in_progress",
+  "currentPhase": "frontend_development",
+  "lastUpdated": "2026-03-01T22:02:00+08:00",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "完成 PRD 产品需求文档",
+      "status": "pending",
+      "assignee": "Nova",
+      "priority": "high"
+    },
+    {
+      "id": "T2",
+      "title": "UI/UX 设计",
+      "status": "completed",
+      "assignee": "UI/UX Agent",
+      "priority": "high"
+    },
+    {
+      "id": "T3",
+      "title": "前端开发",
+      "status": "in_progress",
+      "assignee": "Coder(Frontend)",
+      "priority": "high"
+    },
+    {
+      "id": "T4",
+      "title": "后端开发",
+      "status": "pending",
+      "assignee": "Coder(Backend)",
+      "priority": "medium"
+    },
+    {
+      "id": "T5",
+      "title": "测试与审查",
+      "status": "pending",
+      "assignee": "QA/Reviewer",
+      "priority": "medium"
+    }
+  ],
+  "discordChannel": "1477339217070657649"
+}

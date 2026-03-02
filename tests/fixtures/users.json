@@ -1,0 +1,39 @@
+{
+  "validUser": {
+    "email": "test@echonote.app",
+    "password": "TestPassword123!",
+    "name": "Test User"
+  },
+  "adminUser": {
+    "email": "admin@echonote.app",
+    "password": "AdminPass456!",
+    "name": "Admin User"
+  },
+  "invalidUsers": [
+    {
+      "email": "invalid@example.com",
+      "password": "wrongpassword",
+      "description": "不存在的用户"
+    },
+    {
+      "email": "disabled@echonote.app",
+      "password": "ValidPass123!",
+      "description": "被禁用的用户"
+    }
+  ],
+  "malformedEmails": [
+    "notanemail",
+    "@nodomain.com",
+    "spaces in@email.com",
+    "missing@domain",
+    "double@@at.com",
+    "noat.com",
+    ""
+  ],
+  "weakPasswords": [
+    "123",
+    "abc",
+    "password",
+    "12345678"
+  ]
+}
