@@ -39,7 +39,8 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = async (data: LoginFormData, e?: React.BaseSyntheticEvent) => {
+    e?.preventDefault();
     setError("");
     setIsLoading(true);
 
@@ -55,16 +56,18 @@ export default function LoginPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.message || "登录失败");
+        throw new Error(result.detail || result.message || "登录失败");
       }
 
-      // Store token and redirect
-      if (result.token) {
-        localStorage.setItem("token", result.token);
+      // Store token and redirect - 修复字段名
+      const token = result.access_token || result.token;
+      if (token) {
+        localStorage.setItem("token", token);
+        // Redirect to home
+        window.location.href = "/";
+      } else {
+        throw new Error("未收到登录令牌");
       }
-      
-      // Redirect to dashboard or home
-      window.location.href = "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录时发生错误");
     } finally {

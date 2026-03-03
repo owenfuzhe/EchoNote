@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "EchoNote - 登录",
-  description: "EchoNote 智能笔记应用",
+  title: "EchoNote - 智能语音笔记",
+  description: "EchoNote - 你的AI语音笔记助手",
 };
 
 export default function RootLayout({
@@ -15,8 +15,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
-      <body className={inter.className}>{children}</body>
+    <html lang="zh-CN" suppressHydrationWarning className="light">
+      <body className={`${inter.className} antialiased`}>{children}</body>
     </html>
   );
 }

@@ -1,25 +1,29 @@
 # EchoNote Backend Dependencies
+# FastAPI + SQLAlchemy + JWT
 
 # Web Framework
-fastapi==0.104.1
-uvicorn==0.24.0
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
 
 # Database
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
 
 # Authentication
-passlib==1.7.4
-bcrypt==4.1.2
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
 
-# OAuth & HTTP
-httpx==0.25.2
+# Pydantic & Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+email-validator>=2.1.0
 
-# Data Validation
-pydantic[email]==2.5.2
+# Audio Processing (可选，用于获取音频时长)
+mutagen>=1.47.0
 
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.2
+# HTTP Client
+httpx>=0.25.0
+
+# Environment
+python-dotenv>=1.0.0
