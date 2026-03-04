@@ -18,6 +18,7 @@ router = APIRouter()
 # API Keys (should be in environment variables)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 KIMI_API_KEY = os.getenv("KIMI_API_KEY", "")
+KIMI_BASE_URL = os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1")
 
 class TranscribeRequest(BaseModel):
     audio_url: str
@@ -118,7 +119,7 @@ async def generate_summary(request: SummaryRequest):
             headers = {"Authorization": f"Bearer {KIMI_API_KEY}"}
             
             response = await client.post(
-                "https://api.moonshot.cn/v1/chat/completions",
+                f"{KIMI_BASE_URL}/chat/completions",
                 json=payload,
                 headers=headers,
                 timeout=30.0
@@ -170,7 +171,7 @@ async def generate_tags(request: TagRequest):
             headers = {"Authorization": f"Bearer {KIMI_API_KEY}"}
             
             response = await client.post(
-                "https://api.moonshot.cn/v1/chat/completions",
+                f"{KIMI_BASE_URL}/chat/completions",
                 json=payload,
                 headers=headers,
                 timeout=30.0
@@ -242,7 +243,7 @@ async def extract_todos(request: TodoExtractRequest):
             headers = {"Authorization": f"Bearer {KIMI_API_KEY}"}
             
             response = await client.post(
-                "https://api.moonshot.cn/v1/chat/completions",
+                f"{KIMI_BASE_URL}/chat/completions",
                 json=payload,
                 headers=headers,
                 timeout=30.0
