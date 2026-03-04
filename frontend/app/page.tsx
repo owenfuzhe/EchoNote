@@ -216,57 +216,7 @@ export default function HomePage() {
         </div>
 
         <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-          {/* Quick Start Card */}
-          <div className="relative">
-            {!showQuickStart ? (
-              <div 
-                onClick={() => setShowQuickStart(true)}
-                className="p-5 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800 cursor-pointer hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="font-semibold text-gray-900 dark:text-white">快速开始</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      新建语音笔记，或使用底部 ➕ 开始录音
-                    </p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="font-medium text-gray-900 dark:text-white">选择创建方式</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowQuickStart(false)}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <button 
-                    onClick={startRecording}
-                    className="flex flex-col items-center gap-2 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                  >
-                    <Mic className="w-6 h-6 text-red-500" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">语音</span>
-                  </button>
-                  <button 
-                    onClick={() => router.push('/notes/new')}
-                    className="flex flex-col items-center gap-2 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
-                  >
-                    <SquarePen className="w-6 h-6 text-indigo-500" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">文字</span>
-                  </button>
-                  <button className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                    <Paperclip className="w-6 h-6 text-gray-500" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">文件</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Quick Start Card - Removed per feedback */}
 
           {/* Recent Notes - 2 Column Grid */}
           <div>
@@ -299,13 +249,16 @@ export default function HomePage() {
               <span className="text-[10px]">更多</span>
             </button>
             
-            <button className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+            <button 
+              onClick={() => router.push('/notes/new')}
+              className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
               <SquarePen className="w-5 h-5" />
               <span className="text-[10px]">文字</span>
             </button>
             
             <button 
-              onClick={() => setShowQuickStart(true)}
+              onClick={startRecording}
               className="flex flex-col items-center gap-1 px-3 py-2 text-red-500"
             >
               <Mic className="w-6 h-6" />
@@ -315,12 +268,18 @@ export default function HomePage() {
           
           {/* Right Group - 2 buttons */}
           <div className="bg-white dark:bg-gray-800 rounded-full shadow-lg shadow-gray-200/50 dark:shadow-gray-900/50 px-2 py-2 flex items-center gap-1 pointer-events-auto">
-            <button className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+            <button 
+              onClick={() => router.push('/search')}
+              className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
               <Search className="w-5 h-5" />
               <span className="text-[10px]">搜索</span>
             </button>
             
-            <button className="flex flex-col items-center gap-1 px-3 py-2 text-indigo-600">
+            <button 
+              onClick={() => router.push('/ai-assistant')}
+              className="flex flex-col items-center gap-1 px-3 py-2 text-indigo-600"
+            >
               <Bot className="w-5 h-5" />
               <span className="text-[10px]">AI</span>
             </button>

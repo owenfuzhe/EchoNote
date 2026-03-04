@@ -77,46 +77,26 @@ export default function NotesListPage() {
   });
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 pb-20">
-      <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800">
-        <div className="h-14 flex items-center justify-between px-4">
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">笔记库</h1>
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <Plus className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-          </Button>
+    <div className="min-h-screen bg-white dark:bg-gray-900">
+      {/* Top Tab Bar - Same as Home */}
+      <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 px-4">
+        <div className="flex items-center justify-around h-12">
+          <button 
+            className="flex-1 text-center text-gray-500 dark:text-gray-400 pb-3 pt-3"
+            onClick={() => router.push('/')}
+          >
+            主页
+          </button>
+          <button className="flex-1 text-center text-indigo-600 font-medium border-b-2 border-indigo-600 pb-3 pt-3">
+            资料库
+          </button>
+          <button className="flex-1 text-center text-gray-500 dark:text-gray-400 pb-3 pt-3">
+            待办
+          </button>
         </div>
+      </div>
 
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索笔记..."
-              className="pl-10 h-10 bg-gray-50 dark:bg-gray-800 border-0"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-1 px-4 pb-3 overflow-x-auto">
-          {FILTERS.map(filter => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={cn(
-                "px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors",
-                activeFilter === filter
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200"
-              )}
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      <main className="px-4 py-4">
+      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         <div className="space-y-3">
           {filteredNotes.map(note => (
             <div
@@ -178,34 +158,6 @@ export default function NotesListPage() {
           </div>
         )}
       </main>
-
-      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex items-center justify-around px-4">
-        <Button 
-          variant="ghost" 
-          className="flex flex-col items-center gap-1 h-14 text-gray-400 hover:text-gray-600"
-          onClick={() => router.push('/')}
-        >
-          <Home className="w-5 h-5" />
-          <span className="text-xs">首页</span>
-        </Button>
-        
-        <Button 
-          variant="ghost" 
-          className="flex flex-col items-center gap-1 h-14 text-indigo-600"
-        >
-          <FileText className="w-5 h-5" />
-          <span className="text-xs">笔记</span>
-        </Button>
-        
-        <Button 
-          variant="ghost" 
-          className="flex flex-col items-center gap-1 h-14 text-gray-400 hover:text-gray-600"
-          onClick={() => router.push('/settings')}
-        >
-          <Settings className="w-5 h-5" />
-          <span className="text-xs">设置</span>
-        </Button>
-      </nav>
     </div>
   );
 }
