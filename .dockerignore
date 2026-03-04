@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+env/
+
+# Node
+node_modules/
+.npm
+.next/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker (don't ignore in build context)
+# Dockerfile*
+# docker-compose*.yml
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database (keep for persistence)
+# *.db
+# *.sqlite
+
+# Uploads
+backend/uploads/
+uploads/
+
+# Tests
+tests/
+coverage/
+.nyc_output/
+
+# Reports
+reports/
+
+# Docs
+docs/
+*.md
+!README.md
