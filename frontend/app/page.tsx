@@ -215,7 +215,16 @@ export default function HomePage() {
             >
               资料库
             </button>
-            <button className="flex-1 text-center text-gray-500 dark:text-gray-400 pb-3 pt-3">
+            <button 
+              type="button"
+              className="flex-1 text-center text-gray-500 dark:text-gray-400 pb-3 pt-3 cursor-pointer hover:text-indigo-600 transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('待办按钮点击');
+                router.push('/todos');
+              }}
+            >
               待办
             </button>
           </div>
@@ -250,9 +259,18 @@ export default function HomePage() {
         <div className="fixed bottom-4 left-0 right-0 z-50 px-4 flex justify-between items-end pointer-events-none">
           {/* Left Group - 3 buttons */}
           <div className="bg-white dark:bg-gray-800 rounded-full shadow-lg shadow-gray-200/50 dark:shadow-gray-900/50 px-2 py-2 flex items-center gap-1 pointer-events-auto">
-            <button className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-              <Plus className="w-5 h-5" />
-              <span className="text-[10px]">更多</span>
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('更多按钮点击');
+                alert('更多功能：文件上传、模板、设置等（即将上线）');
+              }}
+              className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer"
+            >
+              <Plus className="w-5 h-5 pointer-events-none" />
+              <span className="text-[10px] pointer-events-none">更多</span>
             </button>
             
             <button 
@@ -270,11 +288,17 @@ export default function HomePage() {
             </button>
             
             <button 
-              onClick={startRecording}
-              className="flex flex-col items-center gap-1 px-3 py-2 text-red-500"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('语音按钮点击');
+                startRecording();
+              }}
+              className="flex flex-col items-center gap-1 px-3 py-2 text-red-500 cursor-pointer"
             >
-              <Mic className="w-6 h-6" />
-              <span className="text-[10px]">语音</span>
+              <Mic className="w-6 h-6 pointer-events-none" />
+              <span className="text-[10px] pointer-events-none">语音</span>
             </button>
           </div>
           
