@@ -204,8 +204,14 @@ export default function HomePage() {
               主页
             </button>
             <button 
-              className="flex-1 text-center text-gray-500 dark:text-gray-400 pb-3 pt-3"
-              onClick={() => router.push('/notes')}
+              type="button"
+              className="flex-1 text-center text-gray-500 dark:text-gray-400 pb-3 pt-3 cursor-pointer hover:text-indigo-600 transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('资料库按钮点击');
+                router.push('/notes');
+              }}
             >
               资料库
             </button>
@@ -250,11 +256,17 @@ export default function HomePage() {
             </button>
             
             <button 
-              onClick={() => router.push('/notes/new')}
-              className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('文字按钮点击');
+                router.push('/notes/new');
+              }}
+              className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer"
             >
-              <SquarePen className="w-5 h-5" />
-              <span className="text-[10px]">文字</span>
+              <SquarePen className="w-5 h-5 pointer-events-none" />
+              <span className="text-[10px] pointer-events-none">文字</span>
             </button>
             
             <button 
@@ -269,19 +281,31 @@ export default function HomePage() {
           {/* Right Group - 2 buttons */}
           <div className="bg-white dark:bg-gray-800 rounded-full shadow-lg shadow-gray-200/50 dark:shadow-gray-900/50 px-2 py-2 flex items-center gap-1 pointer-events-auto">
             <button 
-              onClick={() => router.push('/search')}
-              className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('搜索按钮点击');
+                router.push('/search');
+              }}
+              className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer"
             >
-              <Search className="w-5 h-5" />
-              <span className="text-[10px]">搜索</span>
+              <Search className="w-5 h-5 pointer-events-none" />
+              <span className="text-[10px] pointer-events-none">搜索</span>
             </button>
             
             <button 
-              onClick={() => router.push('/ai-assistant')}
-              className="flex flex-col items-center gap-1 px-3 py-2 text-indigo-600"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('AI按钮点击');
+                router.push('/ai-assistant');
+              }}
+              className="flex flex-col items-center gap-1 px-3 py-2 text-indigo-600 cursor-pointer"
             >
-              <Bot className="w-5 h-5" />
-              <span className="text-[10px]">AI</span>
+              <Bot className="w-5 h-5 pointer-events-none" />
+              <span className="text-[10px] pointer-events-none">AI</span>
             </button>
           </div>
         </div>
