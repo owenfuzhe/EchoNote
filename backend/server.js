@@ -145,6 +145,122 @@ app.post('/api/fetch/bilibili', async (req, res) => {
 });
 
 /**
+ * 抓取小红书笔记
+ * POST /api/fetch/xiaohongshu
+ */
+app.post('/api/fetch/xiaohongshu', async (req, res) => {
+  const { url } = req.body;
+
+  if (!url) {
+    return res.status(400).json({
+      code: 'MISSING_URL',
+      message: 'URL is required'
+    });
+  }
+
+  try {
+    // 验证小红书 URL
+    const xhsPattern = /^https?:\/\/(www\.)?xiaohongshu\.com\/explore\/[a-zA-Z0-9]+/i;
+    const xhsShortPattern = /^https?:\/\/xhslink\.com\/[a-zA-Z0-9]+/i;
+
+    if (!xhsPattern.test(url) && !xhsShortPattern.test(url)) {
+      return res.status(400).json({
+        code: 'INVALID_URL',
+        message: 'Invalid Xiaohongshu URL'
+      });
+    }
+
+    // 抓取页面
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.0',
+        'Referer': 'https://www.xiaohongshu.com/',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      timeout: 30000,
+      maxRedirects: 5
+    });
+
+    const $ = cheerio.load(response.data);
+
+    // 提取标题
+    const title = $('meta[property="og:title"]').attr('content') ||
+                  $('title').text().trim() ||
+                  $('h1').first().text().trim() ||
+                  'Untitled';
+
+    // 提取正文内容
+    let content = '';
+    const desc = $('meta[property="og:description"]').attr('content');
+    if (desc && desc.length > 10) {
+      content = desc;
+    } else {
+      // 尝试从页面内容提取
+      content = $('body').text().trim().replace(/\s+/g, ' ').substring(0, 5000);
+    }
+
+    // 提取封面图片
+    const coverImage = $('meta[property="og:image"]').attr('content');
+
+    // 提取作者
+    const author = $('meta[name="author"]').attr('content') ||
+                   $('.username').text().trim() ||
+                   $('.author-name').text().trim() ||
+                   'Unknown';
+
+    // 提取点赞数、收藏数等（从脚本或特定元素中）
+    let likeCount = 0;
+    let viewCount = 0;
+
+    // 尝试从页面脚本中提取
+    const scripts = $('script').map((i, el) => $(el).html()).get();
+    for (const script of scripts) {
+      if (script && script.includes('likeCount')) {
+        const likeMatch = script.match(/["']likeCount["']\s*:\s*(\d+)/);
+        if (likeMatch) likeCount = parseInt(likeMatch[1]);
+      }
+      if (script && script.includes('viewCount')) {
+        const viewMatch = script.match(/["']viewCount["']\s*:\s*(\d+)/);
+        if (viewMatch) viewCount = parseInt(viewMatch[1]);
+      }
+    }
+
+    res.json({
+      title,
+      author,
+      content,
+      published_at: new Date().toISOString(),
+      url,
+      cover_image: coverImage,
+      like_count: likeCount,
+      view_count: viewCount,
+      platform: 'xiaohongshu'
+    });
+
+  } catch (error) {
+    console.error('Xiaohongshu fetch error:', error.message);
+
+    // 如果是小红书反爬导致的失败，返回基础信息
+    if (error.response && error.response.status === 403) {
+      return res.status(200).json({
+        title: '小红书笔记',
+        author: 'Unknown',
+        content: '该笔记内容受保护，无法自动抓取。请手动复制内容。',
+        published_at: new Date().toISOString(),
+        url,
+        platform: 'xiaohongshu',
+        restricted: true
+      });
+    }
+
+    res.status(500).json({
+      code: 'FETCH_ERROR',
+      message: error.message
+    });
+  }
+});
+
+/**
  * 通用网页内容抓取
  * POST /api/fetch/web
  */
