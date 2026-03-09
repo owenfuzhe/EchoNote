@@ -146,18 +146,18 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
   // 处理键盘事件 - ESC 关闭弹窗
   useEffect(() => {
     if (!isOpen) return;
-    
-    const handleKeyDown = (e: KeyboardEvent) => {
+
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
         onClose();
       }
     };
-    
+
     // 使用 capture 阶段确保优先处理
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, [isOpen, onClose]);
 
   // 处理输入框高度自适应
