@@ -147,6 +147,10 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
   useEffect(() => {
     if (!isOpen) return;
 
+    // 禁用背景滚动
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -157,7 +161,11 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
 
     // 使用 capture 阶段确保优先处理
     document.addEventListener("keydown", handleKeyDown, true);
-    return () => document.removeEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      document.body.style.overflow = originalOverflow;
+    };
   }, [isOpen, onClose]);
 
   // 处理输入框高度自适应
