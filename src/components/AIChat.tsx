@@ -9,7 +9,6 @@ import {
   ListTree,
   History,
   ChevronDown,
-  SquarePen,
   AtSign,
   Paperclip,
   Search,
@@ -377,13 +376,13 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
                   </AnimatePresence>
                 </div>
 
-                {/* 右侧：新建对话 */}
+                {/* 右侧：关闭按钮 */}
                 <button
-                  onClick={handleNewChat}
+                  onClick={onClose}
                   className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  title="新建对话"
+                  title="关闭"
                 >
-                  <SquarePen className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
