@@ -1,0 +1,5 @@
+{
+  "name": "Craft Clone",
+  "description": "A mobile-first web app replicating the Craft app UI.",
+  "requestFramePermissions": []
+}

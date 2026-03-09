@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* Glassmorphism Theme */
+:root {
+  --bg-primary: rgba(255, 255, 255, 0.85);
+  --bg-secondary: rgba(255, 255, 255, 0.6);
+  --blur-amount: 20px;
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* Global glass effect */
+.glass {
+  background: var(--bg-primary);
+  backdrop-filter: blur(var(--blur-amount));
+  -webkit-backdrop-filter: blur(var(--blur-amount));
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-light {
+  background: var(--bg-secondary);
+  backdrop-filter: blur(var(--blur-amount));
+  -webkit-backdrop-filter: blur(var(--blur-amount));
+}
+
+/* Breathing animation for AI processing */
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.breathing {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+/* Remove heavy shadows and borders */
+.no-shadow {
+  box-shadow: none !important;
+}
+
+.borderless {
+  border: none !important;
+}
+
+/* Pure white background with subtle gradient */
+body {
+  background: linear-gradient(180deg, #fafafa 0%, #f5f5f5 100%);
+}

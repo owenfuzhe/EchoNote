@@ -1,0 +1,27 @@
+name: ai-chat-flow
+description: User opens AI chat and interacts
+steps:
+  - action: navigate
+    url: http://localhost:3000
+  
+  - action: wait
+    time: 2000
+  
+  - action: screenshot
+    name: 01-home-before-chat
+  
+  # Open AI chat (long press on AI button)
+  - action: click
+    selector: "button[aria-label='AI 助手']"
+    wait: 500
+  
+  - action: screenshot
+    name: 02-ai-chat-opened
+  
+  # Close AI chat
+  - action: click
+    selector: "button[aria-label='关闭']"
+    wait: 300
+  
+  - action: screenshot
+    name: 03-ai-chat-closed

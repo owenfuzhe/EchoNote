@@ -1,0 +1,101 @@
+
+
+# 🎯 EchoNote: AI-Native Second Brain - Core Architecture & UI Spec
+
+## 1. Meta Context for AI Coder (Claude)
+
+* **Project Name**: EchoNote (Do not use legacy names like Melo or Pincer).
+* **Core Philosophy**: "Less is More" & "Intent-Driven".
+* **Architecture Paradigm**: Abandon traditional hierarchical file systems (no folders, no sidebars). Use a **Context Graph** (Nodes = Notes/Fragments, Edges = Semantic relationships/Traces).
+* **UI/UX Principles**:
+* Extreme minimalist typography. Pure white/translucent backgrounds.
+* Zero card borders or heavy drop shadows; use whitespace and font weights for hierarchy.
+* Fluid states instead of static loading bars (e.g., breathing text for AI processing).
+
+
+
+---
+
+## 2. Global Component: The "Pincer Hub" (Bottom-Right Capsule)
+
+This is the ONLY global action component. It floats above all screens using an acrylic/glassmorphism effect.
+
+* **Layout**: A compact, pill-shaped container `[ 🏠  📚 | 🟣 ➕ ]` anchored to the bottom right/center.
+* **Left Section (Navigation)**: Swipe or tap to toggle strictly between two screens: `Home` and `Library`.
+* **Right Section (Capture & Magic)**:
+* **Tap**: Instantly open a borderless text/voice input overlay.
+* **Long Press (The Magic Invoke)**: Expands into a contextual "Skills" dial (e.g., Web Search, Execute Code, Generate Podcast). Drag finger to select a skill and release to execute.
+* **Logic**: Skills are NOT standalone pages. They are modifiers applied to the user's input intent.
+
+
+
+---
+
+## 3. Screen 1: Home (The Intent Flow & Working Memory)
+
+**Purpose**: The brain's working memory. It handles "What do I want to do now?" and "What did I just do?"
+
+* **Top Area (Global Input)**:
+* A massive, borderless search/input field: `"🔍 Search memory, or capture a new spark..."`
+* Below it, breathing text for ongoing AI tasks (e.g., `✨ AI is summarizing the DeepSeek concurrent architecture...`). Completely hidden if idle.
+
+
+* **Section: "Recent Capture" (Horizontal Scroll)**:
+* Minimalist chips showing the last 3-4 raw inputs (e.g., `🎙️ Voice Memo 09:15`, `📄 Web Clip`). Provides immediate feedback that input was saved.
+
+
+* **Section: "For You" (High-Value AI Delivery)**:
+* **Podcast Remix Card**: Triggered automatically when >5 unread fragments exist for a topic.
+* *Crucial Constraint*: When generating music/podcast recommendations, **DO NOT use "Danceability > 0.5" or similar demographic-biased demographic filters as a default.** Rely purely on the semantic context of the notes.
+
+
+* **Section: "Inspiration" (Context Graph Insights)**:
+* Proactive AI suggestions based on identified patterns (e.g., "You've saved 5 items about Swiss travel. Generate an itinerary?").
+
+
+
+---
+
+## 4. Screen 2: Library (The Long-term Context Graph)
+
+**Purpose**: The brain's storage. It uses Semantic Aggregation instead of manual filing. Absolutely NO hamburger menus or sidebars.
+
+* **Top Area**: Global semantic search bar.
+* **Filter Layer (Smart Chips / Lenses)**:
+* A horizontal scroll of non-mutually-exclusive filter chips to dynamically reshape the view.
+* *Dimension 1 (State)*: `[🧩 Raw]`, `[🔄 Processing]`, `[🌳 Structured]`
+* *Dimension 2 (Intent)*: `[💡 Insights]`, `[🛠️ Actionables]`, `[📄 References]`
+* *Dimension 3 (Format)*: `[🎙️ Audio]`, `[🖼️ Images]`
+
+
+* **Main Content Area (AI Clusters)**:
+* Instead of a list, render dynamically grouped "Topic Clusters" (e.g., `#AI Architecture`, `#2026 Q1 Finance`).
+* Clusters are automatically calculated via vector similarity.
+
+
+* **Core Action: [ 🚀 Export Context ]**:
+* Located on every cluster or multi-select state.
+* Generates a compressed JSON/Markdown payload containing the Context Graph trace (Intent, Raw Data, AI Insights) so the user can paste it into external Agents (like Claude/Kimi).
+
+
+
+---
+
+## 5. Backend Logic: The Trace Engine
+
+* **No Orphaned Data**: Every generated summary, podcast, or clustered folder MUST have a "Trace" JSON attached to it.
+* **Trace Schema**:
+* `source_nodes`: Array of IDs (what fragments built this?).
+* `prompt_overrides`: String (did the user intervene?).
+* `timestamp`: Creation time.
+
+
+* **Actionable Precedents**: If the user heavily edits an AI output (>30% structural change), write this preference back to the Graph silently. Future generations should default to this precedent.
+
+---
+
+### 💡 给你的执行建议：
+
+你可以把这段直接发给 OpenClaw，并附上一句指令：**"Please ingest this PRD. We will start by building the Global 'Pincer Hub' and the routing structure first. Initialize the Flutter/React Native project with a strictly borderless, glassmorphism UI theme."**
+
+想看看 Agent 吃下这段 Prompt 后的第一波代码产出吗？如果有需要，我还可以帮你把 `[ 🚀 Export Context ]` 导出的 JSON 结构体也详细定义出来。

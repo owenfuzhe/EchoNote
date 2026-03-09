@@ -1,0 +1,32 @@
+name: search-web
+description: User performs web search from Explore page
+steps:
+  - action: navigate
+    url: http://localhost:3002
+  
+  - action: click
+    selector: "nav button:nth-child(3)"
+    wait: 300
+  
+  - action: screenshot
+    name: explore-page
+  
+  - action: click
+    selector: "[data-testid='skill-search']"
+    wait: 500
+  
+  - action: type
+    selector: "input[placeholder*='搜索']"
+    text: "React 19 new features"
+  
+  - action: click
+    selector: "button[type='submit']"
+    wait: 3000
+  
+  - action: assert
+    type: visible
+    selector: ".search-results"
+    timeout: 10000
+  
+  - action: screenshot
+    name: search-results

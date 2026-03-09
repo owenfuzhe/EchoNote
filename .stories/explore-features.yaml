@@ -1,0 +1,46 @@
+name: explore-features
+description: User explores skills and templates on Explore page
+steps:
+  - action: navigate
+    url: http://localhost:3000
+  
+  - action: wait
+    time: 2000
+  
+  # Navigate to Explore
+  - action: click
+    selector: "button[aria-label='探索']"
+    wait: 1000
+  
+  - action: screenshot
+    name: 01-explore-page
+  
+  # Check skills section
+  - action: assert
+    type: visible
+    selector: "h2"
+    expected: "技能中心"
+    timeout: 3000
+  
+  - action: screenshot
+    name: 02-skills-section
+  
+  # Check templates section
+  - action: assert
+    type: visible
+    selector: "h2"
+    expected: "推荐模板"
+    timeout: 3000
+  
+  - action: screenshot
+    name: 03-templates-section
+  
+  # Check relation discovery section
+  - action: assert
+    type: visible
+    selector: "h2"
+    expected: "关联发现"
+    timeout: 3000
+  
+  - action: screenshot
+    name: 04-relation-discovery

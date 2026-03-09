@@ -1,0 +1,53 @@
+name: navigate-tabs
+description: User navigates between Home, Library, and Explore tabs
+steps:
+  - action: navigate
+    url: http://localhost:3000
+  
+  - action: wait
+    time: 2000
+  
+  - action: screenshot
+    name: 01-home-tab
+  
+  # Navigate to Library
+  - action: click
+    selector: "button[aria-label='记忆集']"
+    wait: 1000
+  
+  - action: screenshot
+    name: 02-library-tab
+  
+  - action: assert
+    type: visible
+    selector: "h1"
+    expected: "记忆集"
+    timeout: 3000
+  
+  # Navigate to Explore
+  - action: click
+    selector: "button[aria-label='探索']"
+    wait: 1000
+  
+  - action: screenshot
+    name: 03-explore-tab
+  
+  - action: assert
+    type: visible
+    selector: "h1"
+    expected: "探索"
+    timeout: 3000
+  
+  # Navigate back to Home
+  - action: click
+    selector: "button[aria-label='首页']"
+    wait: 1000
+  
+  - action: screenshot
+    name: 04-back-to-home
+  
+  - action: assert
+    type: visible
+    selector: "h1"
+    expected: "EchoNote"
+    timeout: 3000

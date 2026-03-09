@@ -1,0 +1,45 @@
+name: library-archive
+description: User views library with topics and archives
+steps:
+  - action: navigate
+    url: http://localhost:3000
+  
+  - action: wait
+    time: 2000
+  
+  # Navigate to Library
+  - action: click
+    selector: "button[aria-label='记忆集']"
+    wait: 1000
+  
+  - action: screenshot
+    name: 01-library-page
+  
+  # Check search bar
+  - action: assert
+    type: visible
+    selector: "input[placeholder*='搜索']"
+    timeout: 3000
+  
+  - action: screenshot
+    name: 02-search-bar
+  
+  # Check active topics section
+  - action: assert
+    type: visible
+    selector: "h2"
+    expected: "活跃主题"
+    timeout: 3000
+  
+  - action: screenshot
+    name: 03-active-topics
+  
+  # Check archive section
+  - action: assert
+    type: visible
+    selector: "h2"
+    expected: "归档沉淀"
+    timeout: 3000
+  
+  - action: screenshot
+    name: 04-archive-section
