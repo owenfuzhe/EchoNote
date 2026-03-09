@@ -143,15 +143,21 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
     }
   }, [isOpen]);
 
-  // 处理键盘事件
+  // 处理键盘事件 - ESC 关闭弹窗
   useEffect(() => {
-    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
+    if (!isOpen) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         onClose();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    
+    // 使用 capture 阶段确保优先处理
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [isOpen, onClose]);
 
   // 处理输入框高度自适应
@@ -311,8 +317,12 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm"
-            onClick={onClose}
+            className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
           />
 
           {/* 聊天面板 */}
