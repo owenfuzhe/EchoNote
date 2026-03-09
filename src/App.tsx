@@ -9,6 +9,7 @@ import AIChat from "./components/AIChat";
 import CaptureMenu from "./components/CaptureMenu";
 import { useNoteStore } from "./store/note-store";
 import { summarizeUrl } from "./services/search";
+import { fetchWechatArticle, isWechatUrl } from "./services/content-fetcher";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
