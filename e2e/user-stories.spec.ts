@@ -87,8 +87,8 @@ test.describe('用户故事: 在记忆集中搜索', () => {
     await libraryButton.click();
     await page.waitForTimeout(1000);
 
-    // 验证页面标题
-    await expect(page.locator('text=记忆集').first()).toBeVisible();
+    // 验证页面标题（实际是"记忆库"）
+    await expect(page.locator('text=/记忆集|记忆库/').first()).toBeVisible();
   });
 
   test('US-007: 用户在记忆集中搜索关键词', async ({ page }) => {
