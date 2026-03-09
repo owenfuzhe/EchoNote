@@ -310,7 +310,7 @@ export default function App() {
           />
         )}
         {currentView === "search" && (
-          <SearchView 
+          <SearchView
             onNavigate={handleNavigate}
             onClose={() => setCurrentView("home")}
           />

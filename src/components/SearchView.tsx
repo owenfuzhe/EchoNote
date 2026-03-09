@@ -73,7 +73,7 @@ export default function SearchView({ onNavigate, onClose }: SearchViewProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-white flex flex-col">
+    <div className="absolute inset-x-0 top-0 bottom-[100px] z-[60] bg-white flex flex-col mx-auto max-w-md">
       {/* 顶部搜索栏 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
         <div className="flex-1 flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
@@ -86,12 +86,12 @@ export default function SearchView({ onNavigate, onClose }: SearchViewProps) {
             className="flex-1 bg-transparent text-gray-800 placeholder-gray-400 outline-none text-base"
           />
         </div>
-        <button className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600">
+        <button className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
           <SlidersHorizontal size={20} />
         </button>
-        <button 
+        <button
           onClick={onClose}
-          className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600"
+          className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
         >
           <X size={20} />
         </button>
