@@ -401,11 +401,12 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
                     e.stopPropagation();
                     onClose();
                   }}
-                  className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer z-[110]"
                   title="关闭"
                   type="button"
+                  aria-label="关闭"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 pointer-events-none" />
                 </button>
               </div>
 
