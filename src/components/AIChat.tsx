@@ -396,12 +396,12 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
 
                 {/* 右侧：关闭按钮 */}
                 <button
-                  onClick={() => onClose()}
-                  className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all active:scale-95"
                   title="关闭"
                   type="button"
                 >
-                  <X className="w-5 h-5" />
+                  <X size={18} />
                 </button>
               </div>
 
