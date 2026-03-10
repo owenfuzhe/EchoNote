@@ -9,7 +9,7 @@ import AIChat from "./components/AIChat";
 import CaptureMenu from "./components/CaptureMenu";
 import { useNoteStore } from "./store/note-store";
 import { summarizeUrl } from "./services/search";
-import { fetchWechatArticle, isWechatUrl } from "./services/content-fetcher";
+import { fetchContent, isWechatUrl, isXiaohongshuUrl } from "./services/content-fetcher";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
@@ -177,26 +177,72 @@ export default function App() {
     handleNavigate("document", id);
   };
 
-  // 处理链接提交
+  // 处理链接提交 - 使用混合解析引擎
   const handleLinkSubmit = async (url: string) => {
     setIsCaptureLoading(true);
     setIsCaptureMenuOpen(false);
 
     try {
-      const result = await summarizeUrl(url);
+      // 使用混合解析引擎自动识别并抓取内容
+      const result = await fetchContent(url);
 
       if (result.success && result.data) {
+        const data = result.data;
+
+        // 根据平台类型设置不同的标签和标题
+        let title = data.title || extractTitleFromUrl(url);
+        let content = data.content || '';
+        let tags: string[] = ["链接收藏"];
+
+        // 微信文章
+        if (isWechatUrl(url)) {
+          tags = ["微信公众号"];
+          if (data.author && data.author !== 'Unknown') {
+            title = `${data.title} - ${data.author}`;
+          }
+        }
+        // 小红书
+        else if (isXiaohongshuUrl(url)) {
+          tags = ["小红书"];
+          if (data.restricted) {
+            content = `${content}\n\n> ⚠️ 该笔记内容受保护，无法自动抓取完整内容。`;
+          }
+        }
+        // B站视频
+        else if (data.bvid) {
+          tags = ["B站视频"];
+          if (data.uploader) {
+            title = `${data.title} - ${data.uploader}`;
+          }
+          if (data.description) {
+            content = `${data.description}\n\n${content}`;
+          }
+        }
+
         const id = await createNote({
-          title: extractTitleFromUrl(url),
-          content: result.data,
+          title,
+          content,
           type: "link",
           sourceUrl: url,
-          tags: ["链接收藏"],
+          tags,
         });
 
         handleNavigate("document", id);
       } else {
-        alert(result.error?.message || "抓取网页内容失败");
+        // 如果抓取失败，使用 summarizeUrl 作为后备
+        const fallbackResult = await summarizeUrl(url);
+        if (fallbackResult.success && fallbackResult.data) {
+          const id = await createNote({
+            title: extractTitleFromUrl(url),
+            content: fallbackResult.data,
+            type: "link",
+            sourceUrl: url,
+            tags: ["链接收藏"],
+          });
+          handleNavigate("document", id);
+        } else {
+          alert(result.error?.message || "抓取网页内容失败");
+        }
       }
     } catch (error) {
       console.error("Link capture error:", error);
@@ -294,6 +340,26 @@ export default function App() {
     }
   };
 
+  // 处理技能选择
+  const handleSelectSkill = (skillId: string) => {
+    switch (skillId) {
+      case "chat":
+      case "brainstorm":
+      case "draft":
+        setIsAIChatOpen(true);
+        break;
+      case "search":
+        setCurrentView("search");
+        break;
+      case "history":
+        // TODO: 打开历史记录
+        console.log("打开历史记录");
+        break;
+      default:
+        setIsAIChatOpen(true);
+    }
+  };
+
   return (
     <div className="h-[100dvh] bg-gray-100 text-gray-900 font-sans flex justify-center overflow-hidden">
       <div className="w-full max-w-md bg-[#f8f8f9] h-full relative shadow-2xl overflow-hidden flex flex-col">
@@ -321,10 +387,11 @@ export default function App() {
         <BottomNav
           currentView={currentView}
           onNavigate={setCurrentView}
-          onAIChat={() => setIsAIChatOpen(true)}
+          onAIChat={() => setIsAIChatOpen(!isAIChatOpen)}
           onVoiceCapture={() => setIsVoiceCaptureOpen(true)}
           onCaptureMenu={() => setIsCaptureMenuOpen(true)}
           onSearch={() => setCurrentView("search")}
+          onSelectSkill={handleSelectSkill}
         />
 
         {/* Voice Capture Overlay */}

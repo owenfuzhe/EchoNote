@@ -340,7 +340,7 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 top-0 z-[100] mx-auto max-w-3xl"
+            className="fixed inset-0 z-[100]"
           >
             <div className="h-full bg-[#fafafa] dark:bg-[#1a1a1a] flex flex-col overflow-hidden">
               {/* 顶部栏 */}
@@ -444,7 +444,7 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
 
                 {/* 对话消息列表 */}
                 {hasStartedChat && (
-                  <div className="px-4 py-6 space-y-6 max-w-3xl mx-auto">
+                  <div className="px-4 py-6 space-y-6 w-full">
                     {messages.map((message) => (
                       <div key={message.id}>
                         {/* 系统消息 */}
@@ -551,7 +551,7 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
 
               {/* 底部输入区域 */}
               <div className="bg-white dark:bg-[#1a1a1a] border-t border-gray-100 dark:border-gray-800 px-4 py-4">
-                <div className="max-w-3xl mx-auto">
+                <div className="w-full">
                   {/* 输入框容器 */}
                   <div className="bg-gray-100 dark:bg-gray-800 rounded-3xl px-4 py-3">
                     <textarea

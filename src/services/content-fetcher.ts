@@ -49,6 +49,29 @@ export interface BilibiliVideo {
   subtitle?: string;
 }
 
+export interface XiaohongshuNote {
+  /** 笔记标题 */
+  title: string;
+  /** 作者 */
+  author: string;
+  /** 正文内容 */
+  content: string;
+  /** 封面图片 */
+  coverImage?: string;
+  /** 点赞数 */
+  likeCount?: number;
+  /** 浏览量 */
+  viewCount?: number;
+  /** 发布时间 */
+  publishedAt: string;
+  /** 原文链接 */
+  url: string;
+  /** 平台标识 */
+  platform: 'xiaohongshu';
+  /** 是否受保护 */
+  restricted?: boolean;
+}
+
 export interface FetchOptions {
   /** 是否返回纯文本内容（去除 HTML 标签） */
   plainText?: boolean;
@@ -92,6 +115,12 @@ const BILIBILI_URL_PATTERNS = [
   /^https?:\/\/www\.bilibili\.com\/video\/av(\d+)/i,
 ];
 
+// 小红书 URL 模式
+const XIAOHONGSHU_URL_PATTERNS = [
+  /^https?:\/\/(www\.)?xiaohongshu\.com\/explore\/[a-zA-Z0-9]+/i,
+  /^https?:\/\/xhslink\.com\/[a-zA-Z0-9]+/i,
+];
+
 // =============================================================================
 // Error Classes
 // =============================================================================
@@ -123,6 +152,13 @@ export function isWechatUrl(url: string): boolean {
  */
 export function isBilibiliUrl(url: string): boolean {
   return BILIBILI_URL_PATTERNS.some(pattern => pattern.test(url));
+}
+
+/**
+ * 检查 URL 是否为小红书笔记链接
+ */
+export function isXiaohongshuUrl(url: string): boolean {
+  return XIAOHONGSHU_URL_PATTERNS.some(pattern => pattern.test(url));
 }
 
 /**
@@ -310,13 +346,132 @@ export async function fetchBilibiliVideo(
 }
 
 /**
+ * 抓取小红书笔记
+ * 使用后端代理避免 CORS 限制
+ */
+export async function fetchXiaohongshuNote(
+  url: string,
+  options: FetchOptions = {}
+): Promise<FetchResult<XiaohongshuNote>> {
+  const { timeout = DEFAULT_TIMEOUT } = options;
+
+  // 验证 URL
+  if (!isXiaohongshuUrl(url)) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_URL',
+        message: 'Invalid Xiaohongshu URL',
+        details: 'URL must match xiaohongshu.com or xhslink.com pattern',
+      },
+    };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/fetch/xiaohongshu`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new ContentFetcherError(
+        errorData.message || `Proxy request failed: ${response.status}`,
+        errorData.code || 'PROXY_ERROR',
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      data: {
+        title: data.title || 'Untitled',
+        author: data.author || 'Unknown',
+        content: data.content || '',
+        coverImage: data.cover_image,
+        likeCount: data.like_count,
+        viewCount: data.view_count,
+        publishedAt: data.published_at || new Date().toISOString(),
+        url: data.url || url,
+        platform: 'xiaohongshu',
+        restricted: data.restricted,
+      },
+    };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    return handleError(error);
+  }
+}
+
+/**
+ * 抓取通用网页内容
+ * 使用后端代理避免 CORS 限制
+ */
+export async function fetchWebContent(
+  url: string,
+  options: FetchOptions = {}
+): Promise<FetchResult<{ title: string; content: string; url: string }>> {
+  const { timeout = DEFAULT_TIMEOUT } = options;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/fetch/web`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new ContentFetcherError(
+        errorData.message || `Proxy request failed: ${response.status}`,
+        errorData.code || 'PROXY_ERROR',
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      data: {
+        title: data.title || 'Untitled',
+        content: data.content || '',
+        url: data.url || url,
+      },
+    };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    return handleError(error);
+  }
+}
+
+/**
  * 通用内容抓取入口
  * 根据 URL 自动判断类型并调用相应抓取函数
  */
 export async function fetchContent(
   url: string,
   options: FetchOptions = {}
-): Promise<FetchResult<WechatArticle | BilibiliVideo>> {
+): Promise<FetchResult<WechatArticle | BilibiliVideo | XiaohongshuNote | { title: string; content: string; url: string }>> {
   if (isWechatUrl(url)) {
     return fetchWechatArticle(url, options);
   }
@@ -325,14 +480,12 @@ export async function fetchContent(
     return fetchBilibiliVideo(url, options);
   }
   
-  return {
-    success: false,
-    error: {
-      code: 'UNSUPPORTED_URL',
-      message: 'Unsupported URL type',
-      details: 'Only WeChat articles and Bilibili videos are supported',
-    },
-  };
+  if (isXiaohongshuUrl(url)) {
+    return fetchXiaohongshuNote(url, options);
+  }
+  
+  // 通用网页抓取
+  return fetchWebContent(url, options);
 }
 
 // =============================================================================
@@ -384,8 +537,11 @@ function handleError(error: unknown): FetchResult<any> {
 export default {
   fetchWechatArticle,
   fetchBilibiliVideo,
+  fetchXiaohongshuNote,
+  fetchWebContent,
   fetchContent,
   isWechatUrl,
   isBilibiliUrl,
+  isXiaohongshuUrl,
   extractBvidFromUrl,
 };

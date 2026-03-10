@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Home,
   BookOpen,
@@ -27,41 +27,11 @@ export default function BottomNav({
   onSelectSkill,
   onSearch,
 }: BottomNavProps) {
-  const [isPressing, setIsPressing] = useState(false);
   const [showSkillsDial, setShowSkillsDial] = useState(false);
-  const pressTimer = useRef<NodeJS.Timeout | null>(null);
-  const LONG_PRESS_DURATION = 600; // ms - slightly longer for skills dial
 
-  // 处理 AI 按钮按下
-  const handleAIPressStart = useCallback(() => {
-    setIsPressing(true);
-    pressTimer.current = setTimeout(() => {
-      setIsPressing(false);
-      setShowSkillsDial(true); // 显示技能转盘
-    }, LONG_PRESS_DURATION);
-  }, []);
-
-  // 处理 AI 按钮释放
-  const handleAIPressEnd = useCallback(() => {
-    if (pressTimer.current) {
-      clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-
-    if (isPressing && !showSkillsDial) {
-      setIsPressing(false);
-      // 单击也打开 SkillsDial，不再打开 AIChat
-      setShowSkillsDial(true);
-    }
-  }, [isPressing, showSkillsDial]);
-
-  // 处理 AI 按钮离开（防止误触）
-  const handleAIPressLeave = useCallback(() => {
-    if (pressTimer.current) {
-      clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-    setIsPressing(false);
+  // 处理 AI 按钮单击 - 直接打开 SkillsDial
+  const handleAIClick = useCallback(() => {
+    setShowSkillsDial(true);
   }, []);
 
   // 处理技能选择
@@ -69,6 +39,11 @@ export default function BottomNav({
     setShowSkillsDial(false);
     onSelectSkill?.(skillId);
   }, [onSelectSkill]);
+
+  // 处理关闭弹窗
+  const handleCloseDial = useCallback(() => {
+    setShowSkillsDial(false);
+  }, []);
   return (
     <nav className="absolute bottom-8 left-0 right-0 px-6 flex justify-between items-center pointer-events-none z-50" aria-label="主导航">
       {/* Left Pill */}
@@ -110,16 +85,8 @@ export default function BottomNav({
       <div className="bg-white/95 backdrop-blur-xl rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] h-[56px] px-3.5 flex items-center gap-3 pointer-events-auto border border-gray-100">
         {/* AI Core Button */}
         <button
-          onMouseDown={handleAIPressStart}
-          onMouseUp={handleAIPressEnd}
-          onMouseLeave={handleAIPressLeave}
-          onTouchStart={handleAIPressStart}
-          onTouchEnd={handleAIPressEnd}
-          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${
-            isPressing
-              ? "bg-blue-600 scale-95"
-              : "bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 hover:scale-105"
-          }`}
+          onClick={handleAIClick}
+          className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 hover:scale-105 active:scale-95"
           aria-label="AI 助手"
         >
           <Infinity size={20} className="text-white" strokeWidth={2.5} />
@@ -138,9 +105,8 @@ export default function BottomNav({
       {/* Skills Dial */}
       <SkillsDial
         isOpen={showSkillsDial}
-        onClose={() => setShowSkillsDial(false)}
+        onClose={handleCloseDial}
         onSelectSkill={handleSelectSkill}
-        anchorRef={{ current: null }}
       />
     </nav>
   );
