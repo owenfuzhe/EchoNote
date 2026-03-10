@@ -3,7 +3,6 @@
  */
 
 import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   Search,
@@ -189,34 +188,26 @@ export default function SkillsDial({
                 />
               </button>
 
-              <AnimatePresence>
-                {showModeDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white rounded-xl shadow-lg border border-gray-100 py-1 min-w-[140px] z-10"
-                  >
-                    {MODES.map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => {
-                          setSelectedMode(mode);
-                          setShowModeDropdown(false);
-                        }}
-                        className={`w-full px-4 py-2 text-sm text-left transition-colors ${
-                          selectedMode === mode
-                            ? "bg-blue-50 text-blue-600"
-                            : "text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {showModeDropdown && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white rounded-xl shadow-lg border border-gray-100 py-1 min-w-[140px] z-10">
+                  {MODES.map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => {
+                        setSelectedMode(mode);
+                        setShowModeDropdown(false);
+                      }}
+                      className={`w-full px-4 py-2 text-sm text-left transition-colors ${
+                        selectedMode === mode
+                          ? "bg-blue-50 text-blue-600"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* 关闭按钮 */}
@@ -250,12 +241,9 @@ export default function SkillsDial({
 
             {/* 技能选项网格 */}
             <div className="grid grid-cols-2 gap-3 mb-6">
-              {SKILL_OPTIONS.map((skill, index) => (
-                <motion.button
+              {SKILL_OPTIONS.map((skill) => (
+                <button
                   key={skill.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
                   onClick={() => {
                     onSelectSkill(skill.id);
                     onClose();
@@ -275,7 +263,7 @@ export default function SkillsDial({
                       {skill.description}
                     </p>
                   </div>
-                </motion.button>
+                </button>
               ))}
             </div>
 
