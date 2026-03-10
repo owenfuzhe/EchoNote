@@ -14,6 +14,10 @@ import {
   Search,
   Lightbulb,
   FileEdit,
+  MessageSquare,
+  Brain,
+  ArrowRight,
+  Loader2,
 } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 
@@ -58,26 +62,52 @@ const QUICK_ACTIONS = [
   { id: "generate-outline", label: "生成大纲", icon: ListTree },
 ];
 
-// 欢迎页面快捷选项
-const WELCOME_SHORTCUTS = [
+// 欢迎页面功能选项 - 与 CaptureMenu 风格一致
+const WELCOME_FEATURES = [
+  {
+    id: "chat",
+    label: "AI 对话",
+    description: "与 AI 助手自由对话",
+    icon: MessageSquare,
+    color: "text-blue-500",
+    bgColor: "bg-blue-50",
+    prompt: "",
+  },
   {
     id: "search",
-    label: "搜索任何内容",
+    label: "智能搜索",
+    description: "搜索笔记和知识库",
     icon: Search,
-    prompt: "帮我搜索相关信息",
+    color: "text-purple-500",
+    bgColor: "bg-purple-50",
+    prompt: "帮我搜索相关笔记",
   },
   {
     id: "brainstorm",
-    label: "头脑风暴写作创意",
-    icon: Lightbulb,
-    prompt: "帮我头脑风暴一些写作创意",
+    label: "头脑风暴",
+    description: "激发创意和灵感",
+    icon: Brain,
+    color: "text-amber-500",
+    bgColor: "bg-amber-50",
+    prompt: "帮我头脑风暴一些创意",
   },
   {
     id: "draft",
-    label: "起草项目方案",
+    label: "起草文档",
+    description: "快速生成文档草稿",
     icon: FileEdit,
-    prompt: "帮我起草一个项目方案",
+    color: "text-green-500",
+    bgColor: "bg-green-50",
+    prompt: "帮我起草一个文档",
   },
+];
+
+// 快捷标签
+const QUICK_TAGS = [
+  { id: "summarize", label: "总结笔记" },
+  { id: "extract-todos", label: "提取待办" },
+  { id: "generate-outline", label: "生成大纲" },
+  { id: "polish", label: "润色文字" },
 ];
 
 export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps) {
@@ -271,6 +301,7 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
       summarize: "请帮我总结这份笔记的主要内容和关键要点",
       "extract-todos": "请从这份笔记中提取所有待办事项和行动项",
       "generate-outline": "请为这份笔记生成一个结构化的大纲",
+      polish: "请帮我润色这段文字",
     };
 
     const prompt = prompts[actionId];
@@ -279,11 +310,11 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
     }
   };
 
-  // 处理欢迎页面快捷选项
-  const handleWelcomeShortcut = (shortcutId: string) => {
-    const shortcut = WELCOME_SHORTCUTS.find((s) => s.id === shortcutId);
-    if (shortcut) {
-      handleSend(shortcut.prompt);
+  // 处理功能按钮点击
+  const handleFeatureClick = (featureId: string) => {
+    const feature = WELCOME_FEATURES.find((f) => f.id === featureId);
+    if (feature && feature.prompt) {
+      handleSend(feature.prompt);
     }
   };
 
@@ -319,139 +350,113 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* 背景遮罩 */}
+          {/* 背景遮罩 - 与 CaptureMenu 一致 */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm cursor-pointer"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onClose();
-            }}
+            className="fixed inset-0 z-[90] bg-black/30 backdrop-blur-sm"
+            onClick={onClose}
           />
 
-          {/* 聊天面板 */}
+          {/* 菜单面板 - 与 CaptureMenu 一致的居中卡片样式 */}
           <motion.div
-            ref={chatContainerRef}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-0 z-[100]"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 350 }}
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-full max-w-sm px-4"
           >
-            <div className="h-full bg-[#fafafa] dark:bg-[#1a1a1a] flex flex-col overflow-hidden">
-              {/* 顶部栏 */}
-              <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-[#1a1a1a] border-b border-gray-100 dark:border-gray-800">
-                {/* 左侧：历史按钮 */}
-                <button
-                  onClick={() => {}}
-                  className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  title="历史记录"
-                >
-                  <History className="w-5 h-5" />
-                </button>
-
-                {/* 中间：模式下拉 */}
-                <div className="relative" ref={modeDropdownRef}>
-                  <button
-                    onClick={() => setShowModeDropdown(!showModeDropdown)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                  >
-                    {selectedMode}
-                    <ChevronDown className={`w-4 h-4 transition-transform ${showModeDropdown ? "rotate-180" : ""}`} />
-                  </button>
-
-                  <AnimatePresence>
-                    {showModeDropdown && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 min-w-[140px] z-10"
-                      >
-                        {modes.map((mode) => (
-                          <button
-                            key={mode}
-                            onClick={() => {
-                              setSelectedMode(mode);
-                              setShowModeDropdown(false);
-                            }}
-                            className={`w-full px-4 py-2 text-sm text-left transition-colors ${
-                              selectedMode === mode
-                                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                                : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            {mode}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* 右侧：关闭按钮 */}
+            <div className="bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[80vh] flex flex-col">
+              {/* 顶部标题栏 - 与 CaptureMenu 一致 */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+                <h2 className="text-base font-semibold text-gray-900">
+                  今日事，我来帮。
+                </h2>
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all active:scale-95"
-                  title="关闭"
-                  type="button"
+                  disabled={isLoading}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all active:scale-95 disabled:opacity-50"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              {/* 消息列表区域 */}
+              {/* 内容区域 - 可滚动 */}
               <div className="flex-1 overflow-y-auto">
                 {/* 欢迎界面 - 未开始对话时显示 */}
                 {!hasStartedChat && !isLoading && (
-                  <div className="h-full flex flex-col items-center justify-center px-6">
-                    {/* 大 Logo */}
-                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center mb-6 shadow-lg shadow-blue-500/25">
-                      <Sparkles className="w-10 h-10 text-white" />
-                    </div>
+                  <div className="px-5 py-5">
+                    {/* 副标题 */}
+                    <p className="text-sm text-gray-500 mb-4">选择一项功能开始</p>
 
-                    {/* 主标题 */}
-                    <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-12">
-                      今日事，我来帮。
-                    </h1>
-
-                    {/* 快捷选项卡片 */}
-                    <div className="w-full max-w-md space-y-3">
-                      {WELCOME_SHORTCUTS.map((shortcut, index) => (
+                    {/* 功能按钮列表 - 与 CaptureMenu 风格一致 */}
+                    <div className="space-y-2.5">
+                      {WELCOME_FEATURES.map((feature, index) => (
                         <motion.button
-                          key={shortcut.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          onClick={() => handleWelcomeShortcut(shortcut.id)}
-                          className="w-full flex items-center gap-4 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all text-left group"
+                          key={feature.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          onClick={() => handleFeatureClick(feature.id)}
+                          disabled={isLoading}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-full bg-gray-50 hover:bg-gray-100 active:scale-[0.98] transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
-                            <shortcut.icon className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-500 transition-colors" />
+                          {/* 图标 */}
+                          <div
+                            className={`w-10 h-10 rounded-full ${feature.bgColor} ${feature.color} flex items-center justify-center transition-transform group-hover:scale-110`}
+                          >
+                            <feature.icon size={20} />
                           </div>
-                          <span className="text-gray-700 dark:text-gray-300 font-medium">
-                            {shortcut.label}
-                          </span>
+
+                          {/* 文字 */}
+                          <div className="flex-1 text-left">
+                            <span className="text-sm font-medium text-gray-900">
+                              {feature.label}
+                            </span>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {feature.description}
+                            </p>
+                          </div>
+
+                          {/* 箭头指示 */}
+                          <ArrowRight
+                            size={16}
+                            className="text-gray-300 group-hover:text-gray-500 transition-colors"
+                          />
                         </motion.button>
                       ))}
+                    </div>
+
+                    {/* 快捷标签 */}
+                    <div className="mt-5">
+                      <p className="text-xs text-gray-400 mb-3">快速开始</p>
+                      <div className="flex flex-wrap gap-2">
+                        {QUICK_TAGS.map((tag) => (
+                          <button
+                            key={tag.id}
+                            onClick={() => handleQuickAction(tag.id)}
+                            disabled={isLoading}
+                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs text-gray-600 transition-colors disabled:opacity-50"
+                          >
+                            {tag.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
 
                 {/* 对话消息列表 */}
                 {hasStartedChat && (
-                  <div className="px-4 py-6 space-y-6 w-full">
+                  <div className="px-4 py-4 space-y-4 max-h-[40vh] overflow-y-auto">
                     {messages.map((message) => (
                       <div key={message.id}>
                         {/* 系统消息 */}
                         {message.role === "system" && (
                           <div className="flex justify-center">
-                            <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
+                            <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
                               {message.content}
                             </span>
                           </div>
@@ -461,8 +466,8 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
                         {message.role === "user" && (
                           <div className="flex justify-end">
                             <div className="max-w-[80%] flex flex-col items-end">
-                              <div className="px-5 py-3 rounded-2xl rounded-br-md bg-gray-900 dark:bg-blue-600 text-white">
-                                <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
+                              <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-gray-900 text-white">
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap">
                                   {message.content}
                                 </p>
                               </div>
@@ -477,21 +482,21 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
                         {message.role === "model" && (
                           <div className="flex justify-start">
                             <div className="max-w-[85%] flex flex-col items-start">
-                              <div className="flex gap-3">
+                              <div className="flex gap-2">
                                 {/* AI 头像 */}
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 mt-1">
-                                  <Sparkles className="w-4 h-4 text-white" />
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-white" />
                                 </div>
-                                <div className="px-1 py-1 text-gray-800 dark:text-gray-200">
+                                <div className="px-1 py-1 text-gray-800">
                                   <div
-                                    className="text-[15px] leading-relaxed"
+                                    className="text-sm leading-relaxed"
                                     dangerouslySetInnerHTML={{
                                       __html: renderMarkdown(message.content),
                                     }}
                                   />
                                 </div>
                               </div>
-                              <span className="text-[10px] text-gray-400 mt-1 px-1 ml-11">
+                              <span className="text-[10px] text-gray-400 mt-1 px-1 ml-9">
                                 {formatTime(message.timestamp)}
                               </span>
                             </div>
@@ -503,22 +508,22 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
                     {/* 加载动画 */}
                     {isLoading && (
                       <div className="flex justify-start">
-                        <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-                            <Sparkles className="w-4 h-4 text-white" />
+                        <div className="flex gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                            <Sparkles className="w-3.5 h-3.5 text-white" />
                           </div>
-                          <div className="px-4 py-3 bg-white dark:bg-gray-800 rounded-2xl rounded-tl-md border border-gray-200 dark:border-gray-700">
-                            <div className="flex items-center gap-1.5">
+                          <div className="px-3 py-2 bg-white rounded-2xl rounded-tl-md border border-gray-200">
+                            <div className="flex items-center gap-1">
                               <span
-                                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
                                 style={{ animationDelay: "0ms" }}
                               />
                               <span
-                                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
                                 style={{ animationDelay: "150ms" }}
                               />
                               <span
-                                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
                                 style={{ animationDelay: "300ms" }}
                               />
                             </div>
@@ -531,83 +536,38 @@ export default function AIChat({ isOpen, onClose, initialContext }: AIChatProps)
                 )}
               </div>
 
-              {/* 快捷操作栏（仅在加载上下文时显示） */}
-              {initialContext && hasStartedChat && messages.length < 4 && !isLoading && (
-                <div className="bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 px-4 py-3">
-                  <p className="text-xs text-gray-400 mb-2">快捷操作</p>
-                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                    {QUICK_ACTIONS.map((action) => (
-                      <button
-                        key={action.id}
-                        onClick={() => handleQuickAction(action.id)}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors whitespace-nowrap"
-                      >
-                        <action.icon className="w-4 h-4" />
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* 底部输入区域 */}
-              <div className="bg-white dark:bg-[#1a1a1a] border-t border-gray-100 dark:border-gray-800 px-4 py-4">
-                <div className="w-full">
-                  {/* 输入框容器 */}
-                  <div className="bg-gray-100 dark:bg-gray-800 rounded-3xl px-4 py-3">
-                    <textarea
-                      ref={inputRef}
-                      value={inputText}
-                      onChange={handleInputChange}
-                      onKeyDown={handleKeyDown}
-                      placeholder="询问、搜索或创作任何内容..."
-                      className="w-full bg-transparent border-none outline-none resize-none text-[15px] text-gray-800 dark:text-gray-200 placeholder-gray-400 max-h-[200px] min-h-[24px] py-1"
-                      rows={1}
-                      disabled={isLoading}
-                    />
-
-                    {/* 底部工具栏 */}
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                      {/* 左侧工具按钮 */}
-                      <div className="flex items-center gap-1">
-                        <button
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                          title="提及"
-                        >
-                          <AtSign className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                          title="附件"
-                        >
-                          <Paperclip className="w-4 h-4" />
-                        </button>
-                        <button className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm">
-                          <span>全部信息源</span>
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      {/* 右侧发送按钮 */}
-                      <button
-                        onClick={() => handleSend()}
-                        disabled={!inputText.trim() || isLoading}
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                          inputText.trim() && !isLoading
-                            ? "bg-gray-900 dark:bg-blue-600 text-white hover:bg-gray-800 dark:hover:bg-blue-500 active:scale-95"
-                            : "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
-                        }`}
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 提示文字 */}
-                  <p className="text-[11px] text-gray-400 text-center mt-2">
-                    按 Enter 发送 · Shift+Enter 换行
-                  </p>
+              <div className="border-t border-gray-100 px-4 py-4 flex-shrink-0">
+                <div className="relative">
+                  <textarea
+                    ref={inputRef}
+                    value={inputText}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="询问、搜索或创作任何内容..."
+                    className="w-full bg-gray-50 rounded-2xl px-4 py-3 pr-12 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/30 transition-all resize-none min-h-[44px] max-h-[120px]"
+                    rows={1}
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={() => handleSend()}
+                    disabled={!inputText.trim() || isLoading}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
+                      inputText.trim() && !isLoading
+                        ? "bg-blue-500 text-white hover:bg-blue-600 active:scale-95"
+                        : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    {isLoading ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Send size={16} />
+                    )}
+                  </button>
                 </div>
+                <p className="text-[11px] text-gray-400 text-center mt-2">
+                  按 Enter 发送 · Shift+Enter 换行
+                </p>
               </div>
             </div>
           </motion.div>

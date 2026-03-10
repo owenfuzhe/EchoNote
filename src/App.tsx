@@ -5,7 +5,6 @@ import DocumentView from "./components/DocumentView";
 import SearchView from "./components/SearchView";
 import BottomNav from "./components/BottomNav";
 import VoiceCapture from "./components/VoiceCapture";
-import AIChat from "./components/AIChat";
 import CaptureMenu from "./components/CaptureMenu";
 import { useNoteStore } from "./store/note-store";
 import { summarizeUrl } from "./services/search";
@@ -15,7 +14,6 @@ export default function App() {
   const [currentView, setCurrentView] = useState("home");
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [isVoiceCaptureOpen, setIsVoiceCaptureOpen] = useState(false);
-  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isCaptureMenuOpen, setIsCaptureMenuOpen] = useState(false);
   const [isCaptureLoading, setIsCaptureLoading] = useState(false);
   const { fetchNotes, createNote } = useNoteStore();
@@ -343,11 +341,6 @@ export default function App() {
   // 处理技能选择
   const handleSelectSkill = (skillId: string) => {
     switch (skillId) {
-      case "chat":
-      case "brainstorm":
-      case "draft":
-        setIsAIChatOpen(true);
-        break;
       case "search":
         setCurrentView("search");
         break;
@@ -356,7 +349,7 @@ export default function App() {
         console.log("打开历史记录");
         break;
       default:
-        setIsAIChatOpen(true);
+        console.log("技能选择:", skillId);
     }
   };
 
@@ -387,7 +380,6 @@ export default function App() {
         <BottomNav
           currentView={currentView}
           onNavigate={setCurrentView}
-          onAIChat={() => setIsAIChatOpen(!isAIChatOpen)}
           onVoiceCapture={() => setIsVoiceCaptureOpen(true)}
           onCaptureMenu={() => setIsCaptureMenuOpen(true)}
           onSearch={() => setCurrentView("search")}
@@ -399,12 +391,6 @@ export default function App() {
           isOpen={isVoiceCaptureOpen}
           onClose={() => setIsVoiceCaptureOpen(false)}
           onTranscriptionComplete={handleTranscriptionComplete}
-        />
-
-        {/* AI Chat Modal */}
-        <AIChat
-          isOpen={isAIChatOpen}
-          onClose={() => setIsAIChatOpen(false)}
         />
 
         {/* Hidden File Input */}
