@@ -1,25 +1,30 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowRight, Bell, FileText, Headphones, Pause, Play } from 'lucide-react-native';
+import { ArrowRight, Bell, Compass, FileText, Headphones, MessageSquare } from 'lucide-react-native';
 import { useNoteStore } from '../store/noteStore';
 import { AppView } from '../types';
 
 interface Props { onNavigate: (view: AppView, noteId?: string) => void }
 
-const quickDigest = [
-  { id: 'digest-1', title: 'DeepSeek 并发方案', summary: '异步处理队列、连接池管理、超时重试机制...', type: 'podcast', duration: '12:34' },
-  { id: 'digest-2', title: 'UI 设计心理学', summary: '认知负荷、视觉层次、反馈机制三大核心原则', type: 'brief', readTime: '3 min' },
-];
-
-const insights = [
-  { id: 'insight-1', title: '发现知识关联', description: '你的「AI Agent 架构」与「DeepSeek 并发方案」存在 3 处重合', action: '查看关联图谱' },
-  { id: 'insight-2', title: '知识缺口提醒', description: '你记录了 5 篇关于 LLM 的文章，但缺少 Prompt Engineering', action: '获取学习建议' },
-];
+const focusCards = [
+  {
+    id: 'focus-digest',
+    title: '快速消化',
+    desc: '将最近笔记转为可听播客与精简摘要',
+    action: '进入探索',
+  },
+  {
+    id: 'focus-graph',
+    title: '关联探索',
+    desc: '发现主题重合与知识缺口，补齐学习链路',
+    action: '查看图谱',
+  },
+] as const;
 
 export default function HomeView({ onNavigate }: Props) {
   const { notes } = useNoteStore();
-  const [playingId, setPlayingId] = useState<string | null>(null);
   const recent = useMemo(() => notes.slice(0, 6), [notes]);
+  const latest = recent[0];
 
   const format = (d: string) => {
     const diff = Date.now() - new Date(d).getTime();
@@ -33,7 +38,36 @@ export default function HomeView({ onNavigate }: Props) {
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 130 }}>
       <View style={styles.header}><Text style={styles.h1}>主页</Text><Bell size={20} color="#4b5563" /></View>
 
-      <View style={styles.sectionHeader}><Text style={styles.sTitle}>最近</Text><Pressable onPress={() => onNavigate('library')} style={styles.more}><Text style={styles.moreText}>更多</Text><ArrowRight size={12} color="#6b7280" /></Pressable></View>
+      <Text style={styles.sTitle}>继续处理</Text>
+      {latest ? (
+        <View style={styles.resumeCard}>
+          <View style={styles.resumeTop}><Text style={styles.resumeBadge}>最近更新</Text><Text style={styles.resumeTime}>{format(latest.updatedAt)}</Text></View>
+          <Text style={styles.resumeTitle} numberOfLines={2}>{latest.title || '无标题'}</Text>
+          <Text style={styles.resumeSummary} numberOfLines={2}>{latest.content.replace(/#{1,6}\s/g, '').slice(0, 88) || '暂无内容摘要'}</Text>
+          <View style={styles.resumeActions}>
+            <Pressable style={styles.primaryBtn} onPress={() => onNavigate('document', latest.id)}>
+              <FileText size={14} color="white" />
+              <Text style={styles.primaryBtnText}>继续阅读</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryBtn} onPress={() => onNavigate('aiChat')}>
+              <MessageSquare size={14} color="#374151" />
+              <Text style={styles.secondaryBtnText}>AI 对话</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryBtn} onPress={() => onNavigate('explore')}>
+              <Headphones size={14} color="#374151" />
+              <Text style={styles.secondaryBtnText}>转播客</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <Pressable style={styles.emptyCard} onPress={() => onNavigate('library')}>
+          <Text style={styles.emptyTitle}>还没有笔记内容</Text>
+          <Text style={styles.emptyDesc}>先收集一篇内容，再回来一键消化</Text>
+          <Text style={styles.emptyAction}>去资料库看看 →</Text>
+        </Pressable>
+      )}
+
+      <View style={[styles.sectionHeader, { marginTop: 22 }]}><Text style={styles.sTitle}>最近</Text><Pressable onPress={() => onNavigate('library')} style={styles.more}><Text style={styles.moreText}>更多</Text><ArrowRight size={12} color="#6b7280" /></Pressable></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 20 }}>
         {recent.map((n) => (
           <Pressable key={n.id} onPress={() => onNavigate('document', n.id)} style={styles.noteCard}>
@@ -43,28 +77,16 @@ export default function HomeView({ onNavigate }: Props) {
         ))}
       </ScrollView>
 
-      <View style={[styles.sectionHeader, { marginTop: 22 }]}><Text style={styles.sTitle}>快速消化</Text><Text style={styles.subLabel}>AI 生成</Text></View>
+      <View style={[styles.sectionHeader, { marginTop: 22 }]}><Text style={styles.sTitle}>今日聚焦</Text><Text style={styles.subLabel}>知识整理</Text></View>
       <View style={{ gap: 10 }}>
-        {quickDigest.map((item) => (
-          <View key={item.id} style={styles.digestCard}>
-            <View style={styles.digestIcon}><Headphones size={18} color={item.type === 'podcast' ? '#7c3aed' : '#2563eb'} /></View>
-            <View style={{ flex: 1 }}><Text style={styles.digestTitle}>{item.title}</Text><Text style={styles.digestSummary}>{item.summary}</Text></View>
-            {item.type === 'podcast' ? (
-              <Pressable style={styles.playBtn} onPress={() => setPlayingId(playingId === item.id ? null : item.id)}>
-                {playingId === item.id ? <Pause size={14} color="white" /> : <Play size={14} color="#6b7280" />}
-              </Pressable>
-            ) : null}
-          </View>
-        ))}
-      </View>
-
-      <View style={[styles.sectionHeader, { marginTop: 22 }]}><Text style={styles.sTitle}>深度探索</Text><Text style={styles.subLabel}>Context Graph</Text></View>
-      <View style={{ gap: 10 }}>
-        {insights.map((item) => (
-          <Pressable key={item.id} style={styles.insight} onPress={() => onNavigate('explore')}>
-            <Text style={styles.insightTitle}>{item.title}</Text>
-            <Text style={styles.insightDesc}>{item.description}</Text>
-            <Text style={styles.insightAction}>{item.action} →</Text>
+        {focusCards.map((item) => (
+          <Pressable key={item.id} style={styles.focusCard} onPress={() => onNavigate('explore')}>
+            <View style={styles.focusIcon}><Compass size={18} color="#4f46e5" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.focusTitle}>{item.title}</Text>
+              <Text style={styles.focusDesc}>{item.desc}</Text>
+              <Text style={styles.focusAction}>{item.action} →</Text>
+            </View>
           </Pressable>
         ))}
       </View>
@@ -81,18 +103,29 @@ const styles = StyleSheet.create({
   subLabel: { fontSize: 12, color: '#9ca3af' },
   more: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   moreText: { fontSize: 12, color: '#6b7280' },
+  resumeCard: { marginTop: 10, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: 'white', padding: 12 },
+  resumeTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  resumeBadge: { fontSize: 11, color: '#4338ca', backgroundColor: '#e0e7ff', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3, fontWeight: '600' },
+  resumeTime: { fontSize: 12, color: '#94a3b8' },
+  resumeTitle: { marginTop: 8, fontSize: 16, fontWeight: '700', color: '#111827' },
+  resumeSummary: { marginTop: 6, fontSize: 13, color: '#6b7280' },
+  resumeActions: { marginTop: 12, flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  primaryBtn: { height: 34, borderRadius: 17, backgroundColor: '#4f46e5', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  primaryBtnText: { color: 'white', fontWeight: '600', fontSize: 12 },
+  secondaryBtn: { height: 34, borderRadius: 17, backgroundColor: '#eef2ff', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  secondaryBtnText: { color: '#374151', fontWeight: '600', fontSize: 12 },
+  emptyCard: { marginTop: 10, backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#e5e7eb', padding: 12 },
+  emptyTitle: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  emptyDesc: { marginTop: 4, fontSize: 12, color: '#6b7280' },
+  emptyAction: { marginTop: 8, fontSize: 12, color: '#2563eb', fontWeight: '600' },
   noteCard: { width: 160, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', overflow: 'hidden' },
   noteTop: { height: 92, backgroundColor: '#f3f4f6', justifyContent: 'flex-end', padding: 10 },
   fileIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
   noteTitle: { fontSize: 14, fontWeight: '600', color: '#111827', minHeight: 36 },
   noteTime: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
-  digestCard: { backgroundColor: 'white', borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  digestIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' },
-  digestTitle: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  digestSummary: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  playBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#7c3aed' },
-  insight: { backgroundColor: 'white', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#f1f5f9' },
-  insightTitle: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  insightDesc: { fontSize: 13, color: '#4b5563', marginTop: 4 },
-  insightAction: { fontSize: 13, color: '#2563eb', marginTop: 6, fontWeight: '500' },
+  focusCard: { backgroundColor: 'white', borderRadius: 14, padding: 12, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  focusIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#eef2ff', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  focusTitle: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  focusDesc: { marginTop: 2, fontSize: 12, color: '#6b7280' },
+  focusAction: { marginTop: 6, fontSize: 12, color: '#2563eb', fontWeight: '600' },
 });
