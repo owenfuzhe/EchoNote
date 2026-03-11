@@ -22,6 +22,10 @@ export interface WechatArticle {
   coverImage?: string;
   /** 摘要 */
   summary?: string;
+  /** 源网页 */
+  sourceWebpage?: string;
+  /** 快照 HTML */
+  snapshotHtml?: string;
 }
 
 export interface BilibiliVideo {
@@ -70,6 +74,18 @@ export interface XiaohongshuNote {
   platform: 'xiaohongshu';
   /** 是否受保护 */
   restricted?: boolean;
+  /** 源网页 */
+  sourceWebpage?: string;
+  /** 快照 HTML */
+  snapshotHtml?: string;
+}
+
+export interface GenericWebContent {
+  title: string;
+  content: string;
+  url: string;
+  sourceWebpage?: string;
+  snapshotHtml?: string;
 }
 
 export interface FetchOptions {
@@ -276,6 +292,8 @@ export async function fetchWechatArticle(
         url: data.url || url,
         coverImage: data.cover_image,
         summary: data.summary,
+        sourceWebpage: data.source_webpage || data.url || url,
+        snapshotHtml: data.snapshot_html,
       },
     };
   } catch (error) {
@@ -430,6 +448,8 @@ export async function fetchXiaohongshuNote(
         url: data.url || normalizedUrl,
         platform: 'xiaohongshu',
         restricted: data.restricted,
+        sourceWebpage: data.source_webpage || data.url || normalizedUrl,
+        snapshotHtml: data.snapshot_html,
       },
     };
   } catch (error) {
@@ -445,7 +465,7 @@ export async function fetchXiaohongshuNote(
 export async function fetchWebContent(
   url: string,
   options: FetchOptions = {}
-): Promise<FetchResult<{ title: string; content: string; url: string }>> {
+): Promise<FetchResult<GenericWebContent>> {
   const { timeout = DEFAULT_TIMEOUT } = options;
 
   const controller = new AbortController();
@@ -480,6 +500,8 @@ export async function fetchWebContent(
         title: data.title || 'Untitled',
         content: data.content || '',
         url: data.url || url,
+        sourceWebpage: data.source_webpage || data.url || url,
+        snapshotHtml: data.snapshot_html,
       },
     };
   } catch (error) {
@@ -495,7 +517,7 @@ export async function fetchWebContent(
 export async function fetchContent(
   url: string,
   options: FetchOptions = {}
-): Promise<FetchResult<WechatArticle | BilibiliVideo | XiaohongshuNote | { title: string; content: string; url: string }>> {
+): Promise<FetchResult<WechatArticle | BilibiliVideo | XiaohongshuNote | GenericWebContent>> {
   if (isWechatUrl(url)) {
     return fetchWechatArticle(url, options);
   }

@@ -289,6 +289,9 @@ export function parseResultToLegacyShape(platform: Platform, result: ParseRespon
       published_at: result.metadata.publishDate ?? new Date().toISOString(),
       url: result.metadata.canonicalURL ?? '',
       cover_image: result.metadata.featuredImage,
+      raw_html: result.rawHTML,
+      cleaned_html: result.cleanedHTML,
+      text_content: result.textContent,
     };
   }
 
@@ -304,6 +307,9 @@ export function parseResultToLegacyShape(platform: Platform, result: ParseRespon
       view_count: undefined,
       platform: 'xiaohongshu',
       restricted: result.status !== 'success',
+      raw_html: result.rawHTML,
+      cleaned_html: result.cleanedHTML,
+      text_content: result.textContent,
     };
   }
 
@@ -311,5 +317,8 @@ export function parseResultToLegacyShape(platform: Platform, result: ParseRespon
     title: result.metadata.title ?? 'Untitled',
     content: result.content,
     url: result.metadata.canonicalURL ?? '',
+    raw_html: result.rawHTML,
+    cleaned_html: result.cleanedHTML,
+    text_content: result.textContent,
   };
 }

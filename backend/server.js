@@ -152,7 +152,9 @@ app.post('/api/fetch/wechat', async (req, res) => {
       content,
       published_at: parserData.published_at || new Date().toISOString(),
       url: parserData.url || url,
-      cover_image: parserData.cover_image
+      cover_image: parserData.cover_image,
+      source_webpage: parserData.url || url,
+      snapshot_html: parserData.raw_html || parserData.cleaned_html || ''
     });
   } catch (error) {
     console.error('WeChat fetch error:', error.message);
@@ -255,7 +257,9 @@ app.post('/api/fetch/xiaohongshu', async (req, res) => {
       like_count: parserData.like_count,
       view_count: parserData.view_count,
       platform: 'xiaohongshu',
-      restricted: parserData.restricted === true
+      restricted: parserData.restricted === true,
+      source_webpage: parserData.url || normalizedUrl,
+      snapshot_html: parserData.raw_html || parserData.cleaned_html || ''
     });
   } catch (error) {
     console.error('Xiaohongshu fetch error:', error.message);
@@ -291,7 +295,9 @@ app.post('/api/fetch/web', async (req, res) => {
       author: legacyData.author,
       published_at: legacyData.published_at,
       cover_image: legacyData.cover_image,
-      platform: parserData.platform
+      platform: parserData.platform,
+      source_webpage: legacyData.url || url,
+      snapshot_html: legacyData.raw_html || legacyData.cleaned_html || ''
     });
   } catch (error) {
     console.error('Web fetch error:', error.message);

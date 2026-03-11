@@ -45,7 +45,7 @@ app.post('/api/parser/wechat', async (req, res) => {
     return res.status(400).json({ success: false, error: 'URL is required' });
   }
 
-  const result = await service.parseWechat(url);
+  const result = await service.parseWechat(url, { includeRawHTML: true });
   if (!result.success || !result.data) {
     return res.status(500).json({ success: false, error: result.error ?? 'Parse failed' });
   }
@@ -59,7 +59,7 @@ app.post('/api/parser/xiaohongshu', async (req, res) => {
     return res.status(400).json({ success: false, error: 'URL is required' });
   }
 
-  const result = await service.parseXiaohongshu(url);
+  const result = await service.parseXiaohongshu(url, { includeRawHTML: true });
   if (!result.success || !result.data) {
     return res.status(500).json({ success: false, error: result.error ?? 'Parse failed' });
   }
@@ -74,7 +74,7 @@ app.post('/api/parser/legacy-fetch', async (req, res) => {
   }
 
   const platform = detectPlatform(url);
-  const result = await service.parseUrl(url, { forcePlatform: platform });
+  const result = await service.parseUrl(url, { forcePlatform: platform, includeRawHTML: true });
   if (!result.success || !result.data) {
     return res.status(500).json({ success: false, error: result.error ?? 'Parse failed' });
   }

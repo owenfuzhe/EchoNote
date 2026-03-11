@@ -221,7 +221,8 @@ export default function App() {
           title,
           content,
           type: "link",
-          sourceUrl: url,
+          sourceUrl: data.sourceWebpage || url,
+          snapshotHtml: data.snapshotHtml,
           tags,
         });
 

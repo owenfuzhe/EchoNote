@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, Share, MoreHorizontal, Sparkles, CheckSquare, History } from "lucide-react";
+import { ChevronLeft, Share, Sparkles, CheckSquare, History } from "lucide-react";
 import { useNoteStore } from "../store/note-store";
 import { chat, ChatMessage } from "../services/bailian-chat";
 import { extractTodos, createTodoItem } from "../services/todo-extractor";
@@ -10,8 +10,10 @@ interface DocumentViewProps {
   noteId: string | null;
 }
 
+type DocumentTab = "article" | "source" | "snapshot";
+
 export default function DocumentView({ onNavigate, noteId }: DocumentViewProps) {
-  const { notes, updateNote, getNoteById } = useNoteStore();
+  const { updateNote, getNoteById } = useNoteStore();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -21,20 +23,33 @@ export default function DocumentView({ onNavigate, noteId }: DocumentViewProps) 
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isExtractingTodos, setIsExtractingTodos] = useState(false);
   const [showContextPanel, setShowContextPanel] = useState(false);
+  const [activeTab, setActiveTab] = useState<DocumentTab>("article");
 
   const note = noteId ? getNoteById(noteId) : null;
   const isWechatRichNote =
     note?.type === "link" &&
     note?.tags?.includes("微信公众号") &&
     /<[^>]+>/.test(content);
+  const hasSourceWebpage = note?.type === "link" && !!note?.sourceUrl;
+  const hasSnapshot = note?.type === "link" && !!note?.snapshotHtml?.trim();
 
   // 加载笔记数据
   useEffect(() => {
     if (note) {
       setTitle(note.title);
       setContent(note.content);
+      setActiveTab("article");
     }
   }, [note]);
+
+  useEffect(() => {
+    if (activeTab === "source" && !hasSourceWebpage) {
+      setActiveTab("article");
+    }
+    if (activeTab === "snapshot" && !hasSnapshot) {
+      setActiveTab("article");
+    }
+  }, [activeTab, hasSourceWebpage, hasSnapshot]);
 
   // 自动保存
   const handleSave = useCallback(async () => {
@@ -187,18 +202,71 @@ export default function DocumentView({ onNavigate, noteId }: DocumentViewProps) 
           />
         </div>
 
-        {isWechatRichNote ? (
-          <article
-            className="w-full min-h-[50vh] text-gray-800 text-[17px] leading-[1.75] break-words [&_img]:max-w-full [&_img]:h-auto [&_img]:my-4 [&_p]:my-4 [&_section]:my-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-5 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:my-4"
-            dangerouslySetInnerHTML={{ __html: content }}
-          />
-        ) : (
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full min-h-[50vh] text-gray-800 text-[17px] leading-[1.6] outline-none resize-none bg-transparent"
-            placeholder="开始输入内容..."
-          />
+        {(hasSourceWebpage || hasSnapshot) && (
+          <div className="mb-6 inline-flex rounded-xl bg-gray-100 p-1">
+            <button
+              onClick={() => setActiveTab("article")}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${activeTab === "article" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+            >
+              文章
+            </button>
+            {hasSourceWebpage && (
+              <button
+                onClick={() => setActiveTab("source")}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${activeTab === "source" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+              >
+                源网页
+              </button>
+            )}
+            {hasSnapshot && (
+              <button
+                onClick={() => setActiveTab("snapshot")}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${activeTab === "snapshot" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+              >
+                快照
+              </button>
+            )}
+          </div>
+        )}
+
+        {activeTab === "article" && (
+          isWechatRichNote ? (
+            <article
+              className="w-full min-h-[50vh] text-gray-800 text-[17px] leading-[1.75] break-words [&_img]:max-w-full [&_img]:h-auto [&_img]:my-4 [&_p]:my-4 [&_section]:my-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-5 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:my-4"
+              dangerouslySetInnerHTML={{ __html: content }}
+            />
+          ) : (
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full min-h-[50vh] text-gray-800 text-[17px] leading-[1.6] outline-none resize-none bg-transparent"
+              placeholder="开始输入内容..."
+            />
+          )
+        )}
+
+        {activeTab === "source" && note?.sourceUrl && (
+          <div className="w-full min-h-[60vh]">
+            <div className="mb-3 text-xs text-gray-500 break-all">{note.sourceUrl}</div>
+            <iframe
+              title="source-webpage"
+              src={note.sourceUrl}
+              className="w-full h-[65vh] rounded-xl border border-gray-200"
+            />
+          </div>
+        )}
+
+        {activeTab === "snapshot" && (
+          note?.snapshotHtml ? (
+            <iframe
+              title="snapshot"
+              srcDoc={note.snapshotHtml}
+              sandbox=""
+              className="w-full h-[65vh] rounded-xl border border-gray-200 bg-white"
+            />
+          ) : (
+            <div className="text-sm text-gray-400">暂无快照</div>
+          )
         )}
       </div>
 

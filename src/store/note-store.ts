@@ -24,6 +24,7 @@ export interface Note {
   audioUri?: string
   durationMs?: number
   sourceUrl?: string
+  snapshotHtml?: string
   createdAt: string
   updatedAt: string
   tags?: string[]
@@ -110,6 +111,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       audioUri: data.audioUri,
       durationMs: data.durationMs,
       sourceUrl: data.sourceUrl,
+      snapshotHtml: data.snapshotHtml,
       createdAt: now,
       updatedAt: now,
       tags: data.tags || [],
