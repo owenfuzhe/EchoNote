@@ -10,6 +10,45 @@ const cheerio = require('cheerio');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
+const WEB_PARSER_URL = process.env.WEB_PARSER_URL || 'http://localhost:3456';
+
+function normalizeXiaohongshuUrl(rawUrl = '') {
+  const input = String(rawUrl).trim();
+
+  try {
+    const parsed = new URL(input);
+    const host = parsed.hostname.toLowerCase();
+
+    if (host === 'xiaohongshu.com' || host === 'm.xiaohongshu.com') {
+      parsed.hostname = 'www.xiaohongshu.com';
+    }
+
+    const discoveryMatch = parsed.pathname.match(/^\/discovery\/item\/([a-zA-Z0-9]+)/i);
+    if (discoveryMatch && discoveryMatch[1]) {
+      parsed.pathname = `/explore/${discoveryMatch[1]}`;
+    }
+
+    return parsed.toString();
+  } catch {
+    return input;
+  }
+}
+
+async function fetchFromParser(endpoint, payload) {
+  const response = await axios.post(`${WEB_PARSER_URL}${endpoint}`, payload, {
+    timeout: 45000,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.data || response.data.success === false) {
+    const message = response.data?.error || response.data?.message || 'Parser service error';
+    throw new Error(String(message || 'Parser service error'));
+  }
+
+  return response.data;
+}
 
 // Middleware
 app.use(cors());
@@ -18,6 +57,50 @@ app.use(express.json());
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+/**
+ * 微信图片代理（避免外链防盗链提示图）
+ * GET /api/proxy/wechat-image?url=...
+ */
+app.get('/api/proxy/wechat-image', async (req, res) => {
+  const { url } = req.query;
+
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ code: 'MISSING_URL', message: 'Image URL is required' });
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return res.status(400).json({ code: 'INVALID_URL', message: 'Invalid image URL' });
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (!hostname.endsWith('qpic.cn') && !hostname.endsWith('weixin.qq.com')) {
+    return res.status(400).json({ code: 'INVALID_HOST', message: 'Only WeChat image domains are allowed' });
+  }
+
+  try {
+    const response = await axios.get(parsed.toString(), {
+      responseType: 'arraybuffer',
+      timeout: 20000,
+      headers: {
+        Referer: 'https://mp.weixin.qq.com/',
+        'User-Agent':
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.38'
+      }
+    });
+
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(response.data);
+  } catch (error) {
+    console.error('Wechat image proxy error:', error.message);
+    return res.status(502).json({ code: 'IMAGE_PROXY_ERROR', message: 'Failed to fetch image' });
+  }
 });
 
 /**
@@ -35,7 +118,6 @@ app.post('/api/fetch/wechat', async (req, res) => {
   }
 
   try {
-    // 验证微信 URL
     if (!url.match(/^https?:\/\/mp\.weixin\.qq\.com/i)) {
       return res.status(400).json({
         code: 'INVALID_URL',
@@ -43,44 +125,35 @@ app.post('/api/fetch/wechat', async (req, res) => {
       });
     }
 
-    // 抓取页面
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      },
-      timeout: 30000
-    });
+    const parserData = await fetchFromParser('/api/parser/wechat', { url });
 
-    const $ = cheerio.load(response.data);
+    let content = parserData.content || '';
 
-    // 提取信息
-    const title = $('#activity_name').text().trim() ||
-                  $('h1').first().text().trim() ||
-                  $('meta[property="og:title"]').attr('content') ||
-                  'Untitled';
-
-    const author = $('#js_name').text().trim() ||
-                   $('meta[property="og:article:author"]').attr('content') ||
-                   'Unknown';
-
-    let content = $('#js_content').html() || '';
-
-    // 如果请求纯文本
-    if (plain_text) {
-      content = $('#js_content').text().trim();
+    if (!plain_text && content) {
+      const $ = cheerio.load(`<div id="__wechat_content__">${content}</div>`);
+      $('#__wechat_content__ img').each((_, el) => {
+        const $img = $(el);
+        const src = $img.attr('src') || $img.attr('data-src');
+        if (!src) return;
+        const proxyUrl = `${req.protocol}://${req.get('host')}/api/proxy/wechat-image?url=${encodeURIComponent(src)}`;
+        $img.attr('src', proxyUrl);
+        $img.removeAttr('data-src');
+      });
+      content = $('#__wechat_content__').html() || content;
     }
 
-    const coverImage = $('meta[property="og:image"]').attr('content');
+    if (plain_text) {
+      content = cheerio.load(content).text().trim();
+    }
 
     res.json({
-      title,
-      author,
+      title: parserData.title || 'Untitled',
+      author: parserData.author || 'Unknown',
       content,
-      published_at: new Date().toISOString(),
-      url,
-      cover_image: coverImage
+      published_at: parserData.published_at || new Date().toISOString(),
+      url: parserData.url || url,
+      cover_image: parserData.cover_image
     });
-
   } catch (error) {
     console.error('WeChat fetch error:', error.message);
     res.status(500).json({
@@ -159,100 +232,33 @@ app.post('/api/fetch/xiaohongshu', async (req, res) => {
   }
 
   try {
-    // 验证小红书 URL
-    const xhsPattern = /^https?:\/\/(www\.)?xiaohongshu\.com\/explore\/[a-zA-Z0-9]+/i;
-    const xhsShortPattern = /^https?:\/\/xhslink\.com\/[a-zA-Z0-9]+/i;
+    const normalizedUrl = normalizeXiaohongshuUrl(url);
+    const xhsPattern = /^https?:\/\/((www|m)\.)?xiaohongshu\.com\/(explore|discovery\/item)\/[a-zA-Z0-9]+/i;
+    const xhsShortPattern = /^https?:\/\/((www|m)\.)?xhslink\.com\/[a-zA-Z0-9]+/i;
 
-    if (!xhsPattern.test(url) && !xhsShortPattern.test(url)) {
+    if (!xhsPattern.test(normalizedUrl) && !xhsShortPattern.test(normalizedUrl)) {
       return res.status(400).json({
         code: 'INVALID_URL',
         message: 'Invalid Xiaohongshu URL'
       });
     }
 
-    // 抓取页面
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.0',
-        'Referer': 'https://www.xiaohongshu.com/',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      timeout: 30000,
-      maxRedirects: 5
-    });
-
-    const $ = cheerio.load(response.data);
-
-    // 提取标题
-    const title = $('meta[property="og:title"]').attr('content') ||
-                  $('title').text().trim() ||
-                  $('h1').first().text().trim() ||
-                  'Untitled';
-
-    // 提取正文内容
-    let content = '';
-    const desc = $('meta[property="og:description"]').attr('content');
-    if (desc && desc.length > 10) {
-      content = desc;
-    } else {
-      // 尝试从页面内容提取
-      content = $('body').text().trim().replace(/\s+/g, ' ').substring(0, 5000);
-    }
-
-    // 提取封面图片
-    const coverImage = $('meta[property="og:image"]').attr('content');
-
-    // 提取作者
-    const author = $('meta[name="author"]').attr('content') ||
-                   $('.username').text().trim() ||
-                   $('.author-name').text().trim() ||
-                   'Unknown';
-
-    // 提取点赞数、收藏数等（从脚本或特定元素中）
-    let likeCount = 0;
-    let viewCount = 0;
-
-    // 尝试从页面脚本中提取
-    const scripts = $('script').map((i, el) => $(el).html()).get();
-    for (const script of scripts) {
-      if (script && script.includes('likeCount')) {
-        const likeMatch = script.match(/["']likeCount["']\s*:\s*(\d+)/);
-        if (likeMatch) likeCount = parseInt(likeMatch[1]);
-      }
-      if (script && script.includes('viewCount')) {
-        const viewMatch = script.match(/["']viewCount["']\s*:\s*(\d+)/);
-        if (viewMatch) viewCount = parseInt(viewMatch[1]);
-      }
-    }
+    const parserData = await fetchFromParser('/api/parser/xiaohongshu', { url: normalizedUrl });
 
     res.json({
-      title,
-      author,
-      content,
-      published_at: new Date().toISOString(),
-      url,
-      cover_image: coverImage,
-      like_count: likeCount,
-      view_count: viewCount,
-      platform: 'xiaohongshu'
+      title: parserData.title || 'Untitled',
+      author: parserData.author || 'Unknown',
+      content: parserData.content || '',
+      published_at: parserData.published_at || new Date().toISOString(),
+      url: parserData.url || normalizedUrl,
+      cover_image: parserData.cover_image,
+      like_count: parserData.like_count,
+      view_count: parserData.view_count,
+      platform: 'xiaohongshu',
+      restricted: parserData.restricted === true
     });
-
   } catch (error) {
     console.error('Xiaohongshu fetch error:', error.message);
-
-    // 如果是小红书反爬导致的失败，返回基础信息
-    if (error.response && error.response.status === 403) {
-      return res.status(200).json({
-        title: '小红书笔记',
-        author: 'Unknown',
-        content: '该笔记内容受保护，无法自动抓取。请手动复制内容。',
-        published_at: new Date().toISOString(),
-        url,
-        platform: 'xiaohongshu',
-        restricted: true
-      });
-    }
-
     res.status(500).json({
       code: 'FETCH_ERROR',
       message: error.message
@@ -275,30 +281,18 @@ app.post('/api/fetch/web', async (req, res) => {
   }
 
   try {
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-      },
-      timeout: 30000
-    });
-
-    const $ = cheerio.load(response.data);
-
-    // 移除脚本和样式
-    $('script, style, nav, footer, header, aside').remove();
-
-    const title = $('title').text().trim() ||
-                  $('h1').first().text().trim() ||
-                  'Untitled';
-
-    const content = $('body').text().trim().replace(/\s+/g, ' ').substring(0, 10000);
+    const parserData = await fetchFromParser('/api/parser/legacy-fetch', { url });
+    const legacyData = parserData.data || {};
 
     res.json({
-      title,
-      content,
-      url
+      title: legacyData.title || 'Untitled',
+      content: legacyData.content || '',
+      url: legacyData.url || url,
+      author: legacyData.author,
+      published_at: legacyData.published_at,
+      cover_image: legacyData.cover_image,
+      platform: parserData.platform
     });
-
   } catch (error) {
     console.error('Web fetch error:', error.message);
     res.status(500).json({
@@ -314,6 +308,7 @@ app.listen(PORT, () => {
   console.log(`📚 API endpoints:`);
   console.log(`   - POST /api/fetch/wechat`);
   console.log(`   - POST /api/fetch/bilibili`);
+  console.log(`   - POST /api/fetch/xiaohongshu`);
   console.log(`   - POST /api/fetch/web`);
   console.log(`   - GET  /health`);
 });

@@ -104,7 +104,7 @@ const getBackendUrl = (): string => {
 
 // 微信文章 URL 模式
 const WECHAT_URL_PATTERNS = [
-  /^https?:\/\/mp\.weixin\.qq\.com\/s\/.+/i,
+  /^https?:\/\/mp\.weixin\.qq\.com\/s(?:\?.+|\/.+)/i,
   /^https?:\/\/mp\.weixin\.qq\.com\/mp\/appmsg\/show\?/i,
 ];
 
@@ -117,9 +117,31 @@ const BILIBILI_URL_PATTERNS = [
 
 // 小红书 URL 模式
 const XIAOHONGSHU_URL_PATTERNS = [
-  /^https?:\/\/(www\.)?xiaohongshu\.com\/explore\/[a-zA-Z0-9]+/i,
-  /^https?:\/\/xhslink\.com\/[a-zA-Z0-9]+/i,
+  /^https?:\/\/((www|m)\.)?xiaohongshu\.com\/(explore|discovery\/item)\/[a-zA-Z0-9]+/i,
+  /^https?:\/\/((www|m)\.)?xhslink\.com\/[a-zA-Z0-9]+/i,
 ];
+
+function normalizeXiaohongshuUrl(rawUrl: string): string {
+  const input = rawUrl.trim();
+
+  try {
+    const parsed = new URL(input);
+    const host = parsed.hostname.toLowerCase();
+
+    if (host === 'xiaohongshu.com' || host === 'm.xiaohongshu.com') {
+      parsed.hostname = 'www.xiaohongshu.com';
+    }
+
+    const discoveryMatch = parsed.pathname.match(/^\/discovery\/item\/([a-zA-Z0-9]+)/i);
+    if (discoveryMatch?.[1]) {
+      parsed.pathname = `/explore/${discoveryMatch[1]}`;
+    }
+
+    return parsed.toString();
+  } catch {
+    return input;
+  }
+}
 
 // =============================================================================
 // Error Classes
@@ -158,7 +180,8 @@ export function isBilibiliUrl(url: string): boolean {
  * 检查 URL 是否为小红书笔记链接
  */
 export function isXiaohongshuUrl(url: string): boolean {
-  return XIAOHONGSHU_URL_PATTERNS.some(pattern => pattern.test(url));
+  const normalized = normalizeXiaohongshuUrl(url);
+  return XIAOHONGSHU_URL_PATTERNS.some(pattern => pattern.test(normalized));
 }
 
 /**
@@ -354,9 +377,10 @@ export async function fetchXiaohongshuNote(
   options: FetchOptions = {}
 ): Promise<FetchResult<XiaohongshuNote>> {
   const { timeout = DEFAULT_TIMEOUT } = options;
+  const normalizedUrl = normalizeXiaohongshuUrl(url);
 
   // 验证 URL
-  if (!isXiaohongshuUrl(url)) {
+  if (!isXiaohongshuUrl(normalizedUrl)) {
     return {
       success: false,
       error: {
@@ -376,7 +400,7 @@ export async function fetchXiaohongshuNote(
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url: normalizedUrl }),
       signal: controller.signal,
     });
 
@@ -403,7 +427,7 @@ export async function fetchXiaohongshuNote(
         likeCount: data.like_count,
         viewCount: data.view_count,
         publishedAt: data.published_at || new Date().toISOString(),
-        url: data.url || url,
+        url: data.url || normalizedUrl,
         platform: 'xiaohongshu',
         restricted: data.restricted,
       },

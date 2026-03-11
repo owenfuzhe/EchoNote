@@ -23,6 +23,10 @@ export default function DocumentView({ onNavigate, noteId }: DocumentViewProps) 
   const [showContextPanel, setShowContextPanel] = useState(false);
 
   const note = noteId ? getNoteById(noteId) : null;
+  const isWechatRichNote =
+    note?.type === "link" &&
+    note?.tags?.includes("微信公众号") &&
+    /<[^>]+>/.test(content);
 
   // 加载笔记数据
   useEffect(() => {
@@ -183,12 +187,19 @@ export default function DocumentView({ onNavigate, noteId }: DocumentViewProps) 
           />
         </div>
 
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="w-full min-h-[50vh] text-gray-800 text-[17px] leading-[1.6] outline-none resize-none bg-transparent"
-          placeholder="开始输入内容..."
-        />
+        {isWechatRichNote ? (
+          <article
+            className="w-full min-h-[50vh] text-gray-800 text-[17px] leading-[1.75] break-words [&_img]:max-w-full [&_img]:h-auto [&_img]:my-4 [&_p]:my-4 [&_section]:my-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-5 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:my-4"
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+        ) : (
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="w-full min-h-[50vh] text-gray-800 text-[17px] leading-[1.6] outline-none resize-none bg-transparent"
+            placeholder="开始输入内容..."
+          />
+        )}
       </div>
 
       {/* AI Chat Panel */}
