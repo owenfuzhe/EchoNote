@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "EchoNote",
+    "slug": "echonote-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.echonote.mobile"
+    },
+    "android": {
+      "package": "com.echonote.mobile"
+    }
+  }
+}
