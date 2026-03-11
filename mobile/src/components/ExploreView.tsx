@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { Check, Compass, Globe, Link2, Loader, Pause, Play, Plus, Search } from 'lucide-react-native';
 import { NoteRelation, getLocalNoteRelations } from '../services/note-relations';
 import { PodcastTTSPlayer, VOICE_OPTIONS, generatePodcastMock, getPodcastByNoteId } from '../services/podcast';
+import StateBlock from './StateBlock';
 import { searchWeb } from '../services/search';
 import { getTemplateContent, recommendTemplates, recordTemplateUsage } from '../services/template-recommender';
 import { useNoteStore } from '../store/noteStore';
@@ -227,7 +228,13 @@ export default function ExploreView({ onNavigate }: Props) {
             <>
               <Text style={styles.panelTitle}>播客生成 · 选择笔记</Text>
               {notes.length === 0 ? (
-                <Text style={styles.hint}>暂无笔记，请先创建笔记</Text>
+                <StateBlock
+                  variant="empty"
+                  title="还没有可播客化的笔记"
+                  description="先采集或创建一条内容，再回来生成语音"
+                  actionText="去资料库"
+                  onAction={() => onNavigate('library')}
+                />
               ) : (
                 <View style={{ gap: 8 }}>
                   {notes.slice(0, 10).map((note) => (
@@ -326,10 +333,13 @@ export default function ExploreView({ onNavigate }: Props) {
         <Text style={styles.hint}>{relations.length} 个关联</Text>
       </View>
       {relations.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Link2 size={24} color="#9ca3af" />
-          <Text style={styles.emptyText}>笔记数量不足，暂无法发现关联</Text>
-        </View>
+        <StateBlock
+          variant="empty"
+          title="暂时还没有可展示的关联"
+          description="再增加几条同主题笔记，系统会自动发现关系"
+          actionText="去创建笔记"
+          onAction={() => onNavigate('library')}
+        />
       ) : (
         <View style={{ gap: 10 }}>
           {relations.map((r) => (

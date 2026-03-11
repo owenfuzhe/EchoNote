@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Clock3, Search, SlidersHorizontal, Tag, X } from 'lucide-react-native';
 import { searchEngine } from '../services/search-engine';
+import StateBlock from './StateBlock';
 import { useNoteStore } from '../store/noteStore';
 import { AppView } from '../types';
 
@@ -40,7 +41,7 @@ export default function SearchView({ onNavigate, onClose }: Props) {
         <View style={styles.suggWrap}>{suggestions.map((s, idx) => <Pressable key={idx} style={styles.suggItem} onPress={() => setQ(s.replace(/^#/, ''))}><Search size={14} color="#9ca3af" /><Text style={styles.suggText}>{s}</Text></Pressable>)}</View>
       )}
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 24 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 24, gap: 8 }}>
         {!!q.trim() && <Text style={styles.count}>找到 {results.length} 个结果</Text>}
         {(q.trim() ? results.map((r) => r.item) : sortedRecent).map((item) => (
           <Pressable key={item.id} style={styles.item} onPress={() => onNavigate('document', item.id)}>
@@ -52,6 +53,24 @@ export default function SearchView({ onNavigate, onClose }: Props) {
             </View>
           </Pressable>
         ))}
+        {!!q.trim() && results.length === 0 && (
+          <StateBlock
+            variant="empty"
+            title="没有找到匹配结果"
+            description="试试更短关键词，或改用标签词搜索"
+            actionText="清空关键词"
+            onAction={() => setQ('')}
+          />
+        )}
+        {!q.trim() && sortedRecent.length === 0 && (
+          <StateBlock
+            variant="empty"
+            title="还没有可搜索内容"
+            description="先新增一条笔记，再回来搜索"
+            actionText="关闭搜索"
+            onAction={onClose}
+          />
+        )}
       </ScrollView>
     </View>
   );

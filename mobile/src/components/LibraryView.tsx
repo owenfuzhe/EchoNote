@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Archive, ChevronDown, Clock, Filter, Search, Settings } from 'lucide-react-native';
+import StateBlock from './StateBlock';
 import { useNoteStore } from '../store/noteStore';
-import { AppView, Note } from '../types';
+import { AppView } from '../types';
 
 interface Props { onNavigate: (view: AppView, noteId?: string) => void }
 
@@ -74,7 +75,20 @@ export default function LibraryView({ onNavigate }: Props) {
             </View>
           </Pressable>
         ))}
-        {!filtered.length && <Text style={styles.empty}>没有找到匹配的笔记</Text>}
+        {!filtered.length && (
+          <StateBlock
+            variant="empty"
+            title="没有找到匹配的笔记"
+            description="你可以放宽筛选条件，或先新增内容"
+            actionText="清空筛选"
+            onAction={() => {
+              setSearchQuery('');
+              setSelectedType('all');
+              setSelectedTags([]);
+              setSortBy('newest');
+            }}
+          />
+        )}
       </ScrollView>
 
       <Modal transparent visible={showFilterModal} animationType="slide" onRequestClose={() => setShowFilterModal(false)}>

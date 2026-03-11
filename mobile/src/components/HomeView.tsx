@@ -9,15 +9,17 @@ interface Props { onNavigate: (view: AppView, noteId?: string) => void }
 const focusCards = [
   {
     id: 'focus-digest',
-    title: '快速消化',
-    desc: '将最近笔记转为可听播客与精简摘要',
-    action: '进入探索',
+    title: '先消化',
+    desc: '把最近笔记转成播客或摘要，先听懂重点',
+    action: '去探索',
+    target: 'explore' as const,
   },
   {
-    id: 'focus-graph',
-    title: '关联探索',
-    desc: '发现主题重合与知识缺口，补齐学习链路',
-    action: '查看图谱',
+    id: 'focus-action',
+    title: '再行动',
+    desc: '将想法变成待办，形成可执行闭环',
+    action: '去任务',
+    target: 'tasks' as const,
   },
 ] as const;
 
@@ -77,10 +79,10 @@ export default function HomeView({ onNavigate }: Props) {
         ))}
       </ScrollView>
 
-      <View style={[styles.sectionHeader, { marginTop: 22 }]}><Text style={styles.sTitle}>今日聚焦</Text><Text style={styles.subLabel}>知识整理</Text></View>
+      <View style={[styles.sectionHeader, { marginTop: 22 }]}><Text style={styles.sTitle}>下一步建议</Text><Text style={styles.subLabel}>采集 → 消化 → 行动</Text></View>
       <View style={{ gap: 10 }}>
         {focusCards.map((item) => (
-          <Pressable key={item.id} style={styles.focusCard} onPress={() => onNavigate('explore')}>
+          <Pressable key={item.id} style={styles.focusCard} onPress={() => onNavigate(item.target)}>
             <View style={styles.focusIcon}><Compass size={18} color="#4f46e5" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.focusTitle}>{item.title}</Text>
