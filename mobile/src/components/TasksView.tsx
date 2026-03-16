@@ -56,9 +56,9 @@ export default function TasksView({ onNavigate }: Props) {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        <FilterBtn active={filter === 'all'} onPress={() => setFilter('all')} icon={<Inbox size={18} color={filter === 'all' ? '#2563eb' : '#6b7280'} />} />
-        <FilterBtn active={filter === 'today'} onPress={() => setFilter('today')} icon={<Sun size={18} color={filter === 'today' ? '#2563eb' : '#6b7280'} />} label="Today" />
-        <FilterBtn active={filter === 'completed'} onPress={() => setFilter('completed')} icon={<Calendar size={18} color={filter === 'completed' ? '#16a34a' : '#6b7280'} />} />
+        <FilterBtn active={filter === 'all'} onPress={() => setFilter('all')} icon={<Inbox size={18} color={filter === 'all' ? '#2563eb' : '#6b7280'} />} label="全部" />
+        <FilterBtn active={filter === 'today'} onPress={() => setFilter('today')} icon={<Sun size={18} color={filter === 'today' ? '#2563eb' : '#6b7280'} />} label="待处理" />
+        <FilterBtn active={filter === 'completed'} onPress={() => setFilter('completed')} icon={<Calendar size={18} color={filter === 'completed' ? '#16a34a' : '#6b7280'} />} label="已完成" />
       </ScrollView>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 130 }}>
@@ -108,8 +108,8 @@ const styles = StyleSheet.create({
   header: { marginBottom: 14 },
   h1: { fontSize: 30, fontWeight: '800', color: '#111827' },
   sub: { marginTop: 2, fontSize: 13, color: '#6b7280' },
-  filters: { gap: 10, paddingBottom: 12 },
-  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f3f4f6', borderRadius: 14, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 10 },
+  filters: { gap: 10, paddingBottom: 12, alignItems: 'center' },
+  filterBtn: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f3f4f6', borderRadius: 14, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 10 },
   filterBtnActive: { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' },
   filterLabel: { color: '#6b7280', fontWeight: '600' },
   filterLabelActive: { color: '#2563eb' },

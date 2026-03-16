@@ -11,6 +11,9 @@
     },
     "android": {
       "package": "com.echonote.mobile"
-    }
+    },
+    "plugins": [
+      "expo-speech-recognition"
+    ]
   }
 }

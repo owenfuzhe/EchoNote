@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChevronLeft, Loader, Send, Sparkles } from 'lucide-react-native';
 import { chat } from '../services/bailian-chat';
@@ -7,6 +7,8 @@ import { AppView, ChatMessage } from '../types';
 
 interface Props {
   onNavigate: (view: AppView, noteId?: string) => void;
+  initialInput?: string;
+  initialInputVersion?: number;
 }
 
 const QUICK_ACTIONS = [
@@ -15,11 +17,15 @@ const QUICK_ACTIONS = [
   { id: 'outline', label: '生成大纲', prompt: '基于我最近笔记内容，生成一个可执行的项目大纲。' },
 ];
 
-export default function AIChatView({ onNavigate }: Props) {
+export default function AIChatView({ onNavigate, initialInput, initialInputVersion }: Props) {
   const { notes } = useNoteStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialInput?.trim()) setInput(initialInput.trim());
+  }, [initialInput, initialInputVersion]);
 
   const context = useMemo(() => {
     const recent = notes.slice(0, 5);

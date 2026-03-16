@@ -29,6 +29,8 @@ export default function App() {
   const [isCaptureMenuOpen, setIsCaptureMenuOpen] = useState(false);
   const [isCaptureLoading, setIsCaptureLoading] = useState(false);
   const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND);
+  const [aiDraftInput, setAiDraftInput] = useState('');
+  const [aiDraftVersion, setAiDraftVersion] = useState(0);
 
   const { fetchNotes, createNote } = useNoteStore();
 
@@ -45,14 +47,26 @@ export default function App() {
     setCurrentView(view);
   };
 
-  const handleTranscriptionComplete = async (text: string) => {
+  const handleVoiceGenerateNote = async (text: string) => {
+    const finalText = text.trim();
+    if (!finalText) return;
     const id = await createNote({
-      title: text.slice(0, 20) + (text.length > 20 ? '...' : ''),
-      content: text,
+      title: finalText.slice(0, 20) + (finalText.length > 20 ? '...' : ''),
+      content: finalText,
       type: 'voice',
+      tags: ['语音输入', 'AI润色'],
     });
     setIsVoiceCaptureOpen(false);
     handleNavigate('document', id);
+  };
+
+  const handleVoiceAskAI = (text: string) => {
+    const finalText = text.trim();
+    if (!finalText) return;
+    setAiDraftInput(finalText);
+    setAiDraftVersion((v) => v + 1);
+    setIsVoiceCaptureOpen(false);
+    setCurrentView('aiChat');
   };
 
   const handleFileCapture = async (type?: 'pdf' | 'audio') => {
@@ -169,7 +183,7 @@ export default function App() {
         {currentView === 'search' && <SearchView onNavigate={handleNavigate} onClose={() => setCurrentView('home')} />}
         {currentView === 'tasks' && <TasksView onNavigate={handleNavigate} />}
         {currentView === 'explore' && <ExploreView onNavigate={handleNavigate} />}
-        {currentView === 'aiChat' && <AIChatView onNavigate={handleNavigate} />}
+        {currentView === 'aiChat' && <AIChatView onNavigate={handleNavigate} initialInput={aiDraftInput} initialInputVersion={aiDraftVersion} />}
 
         <BottomNav
           currentView={currentView}
@@ -177,9 +191,15 @@ export default function App() {
           onCaptureMenu={() => setIsCaptureMenuOpen(true)}
           onSearch={() => setCurrentView('search')}
           onSelectSkill={handleSelectSkill}
+          onAIVoiceCapture={() => setIsVoiceCaptureOpen(true)}
         />
 
-        <VoiceCapture isOpen={isVoiceCaptureOpen} onClose={() => setIsVoiceCaptureOpen(false)} onTranscriptionComplete={handleTranscriptionComplete} />
+        <VoiceCapture
+          isOpen={isVoiceCaptureOpen}
+          onClose={() => setIsVoiceCaptureOpen(false)}
+          onGenerateNote={handleVoiceGenerateNote}
+          onAskAI={handleVoiceAskAI}
+        />
 
         <CaptureMenu
           isOpen={isCaptureMenuOpen}

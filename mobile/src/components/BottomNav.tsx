@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookOpen, Home, Infinity, Lightbulb, Plus, Search } from 'lucide-react-native';
@@ -11,6 +11,7 @@ interface BottomNavProps {
   onCaptureMenu?: () => void;
   onSelectSkill?: (skillId: string) => void;
   onSearch?: () => void;
+  onAIVoiceCapture?: () => void;
 }
 
 interface NavItemProps {
@@ -20,8 +21,9 @@ interface NavItemProps {
   onPress?: () => void;
 }
 
-export default function BottomNav({ currentView, onNavigate, onCaptureMenu, onSelectSkill, onSearch }: BottomNavProps) {
+export default function BottomNav({ currentView, onNavigate, onCaptureMenu, onSelectSkill, onSearch, onAIVoiceCapture }: BottomNavProps) {
   const [showSkillsDial, setShowSkillsDial] = useState(false);
+  const longPressTriggeredRef = useRef(false);
   const insets = useSafeAreaInsets();
 
   const NavItem = ({ active, label, icon, onPress }: NavItemProps) => (
@@ -62,7 +64,24 @@ export default function BottomNav({ currentView, onNavigate, onCaptureMenu, onSe
         </View>
 
         <View style={styles.rightPill}>
-          <Pressable onPress={() => setShowSkillsDial(true)} style={styles.aiBtn}><Infinity size={19} color="white" /></Pressable>
+          <Pressable
+            onPressIn={() => { longPressTriggeredRef.current = false; }}
+            onLongPress={() => {
+              longPressTriggeredRef.current = true;
+              onAIVoiceCapture?.();
+            }}
+            delayLongPress={220}
+            onPress={() => {
+              if (longPressTriggeredRef.current) {
+                longPressTriggeredRef.current = false;
+                return;
+              }
+              setShowSkillsDial(true);
+            }}
+            style={styles.aiBtn}
+          >
+            <Infinity size={19} color="white" />
+          </Pressable>
           <Pressable onPress={onCaptureMenu} style={styles.addBtn}><Plus size={18} color="#374151" /></Pressable>
         </View>
       </View>

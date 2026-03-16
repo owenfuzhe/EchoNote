@@ -42,3 +42,6 @@ backend/.env
 *.tmp
 *.temp
 ui-assets/
+
+# Expo (mobile)
+mobile/.expo/
