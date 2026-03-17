@@ -60,38 +60,26 @@ export default function ExploreView({
         </View>
 
         <Text style={styles.pageTitle}>深度探索</Text>
-        <Text style={styles.pageSub}>围绕一个 Topic 持续获得进展、关联和思辨挑战。</Text>
+        <Text style={styles.pageSub}>围绕一个 Topic，先看清进展，再决定要不要继续深入。</Text>
 
         <View style={styles.heroCard}>
-          <View style={styles.heroHead}>
-            <View style={styles.heroTopicRow}>
-              <View style={styles.heroIconWrap}>
-                <Compass size={16} color="#2563eb" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.heroLabel}>当前 Topic</Text>
-                <Text style={styles.heroTitle}>{workspace.topicLabel}</Text>
-              </View>
+          <View style={styles.heroTopicRow}>
+            <View style={styles.heroIconWrap}>
+              <Compass size={16} color="#2563eb" />
             </View>
-            <View style={[styles.heroPill, workspace.topicSource === 'custom' && styles.heroPillCustom]}>
-              <Text style={[styles.heroPillText, workspace.topicSource === 'custom' && styles.heroPillTextCustom]}>
-                {workspace.topicSource === 'custom' ? '手动设置' : 'AI 识别'}
-              </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroLabel}>{workspace.topicSource === 'custom' ? '手动设置的 Topic' : 'AI 识别出的 Topic'}</Text>
+              <Text style={styles.heroTitle}>{workspace.topicLabel}</Text>
             </View>
           </View>
-
           <Text style={styles.heroSummary}>{workspace.summary}</Text>
-
-          <View style={styles.heroStats}>
-            <View style={styles.heroStatPill}>
-              <Text style={styles.heroStatText}>{`${workspace.noteCount || 0} 篇已收录`}</Text>
-            </View>
-            <View style={styles.heroStatPill}>
-              <Text style={styles.heroStatText}>{`${Math.max(workspace.freshCount, workspace.noteCount ? 1 : 0)} 条进展`}</Text>
-            </View>
-            <View style={styles.heroStatPill}>
-              <Text style={styles.heroStatText}>1 个挑战</Text>
-            </View>
+          <View style={styles.heroMetaRow}>
+            <Text style={styles.heroMeta}>
+              {`${workspace.noteCount || 0} 篇材料 · ${Math.max(workspace.freshCount, workspace.noteCount ? 1 : 0)} 条进展`}
+            </Text>
+            <Pressable onPress={() => setTopicPickerOpen(true)}>
+              <Text style={styles.heroMetaLink}>调整 Topic</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -121,81 +109,71 @@ export default function ExploreView({
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>关联视角</Text>
-          <View style={styles.relationCard}>
-            <View style={styles.sectionEyebrowRow}>
+          <View style={styles.quietCard}>
+            <View style={styles.inlineLabelRow}>
               <Lightbulb size={15} color="#ca8a04" />
-              <Text style={styles.sectionEyebrow}>跨笔记互补线索</Text>
+              <Text style={styles.inlineLabel}>跨笔记互补线索</Text>
             </View>
             <Text style={styles.relationTitle}>{workspace.relationCard.title}</Text>
             <Text style={styles.relationDetail}>{workspace.relationCard.detail}</Text>
             <Pressable
-              style={styles.relationBtn}
+              style={styles.inlineAction}
               onPress={() => {
                 if (workspace.relationCard.noteId) onNavigate('document', workspace.relationCard.noteId);
                 else onNavigate('library');
               }}
             >
-              <Text style={styles.relationBtnText}>{workspace.relationCard.actionLabel}</Text>
+              <Text style={styles.inlineActionText}>{workspace.relationCard.actionLabel}</Text>
             </Pressable>
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>思辨挑战</Text>
-          <View style={styles.challengeCard}>
+          <View style={styles.quietCard}>
             <View style={styles.challengeHead}>
-              <View style={styles.challengeBadge}>
+              <View style={styles.inlineLabelRow}>
                 <Sparkles size={14} color="#b91c1c" />
-                <Text style={styles.challengeBadgeText}>Spar</Text>
+                <Text style={styles.inlineLabel}>Spar</Text>
               </View>
-              <View style={styles.proPill}>
-                <Text style={styles.proPillText}>Pro</Text>
-              </View>
+              <Text style={styles.challengePro}>Pro</Text>
             </View>
             <Text style={styles.challengeEyebrow}>{workspace.challengeCard.eyebrow}</Text>
             <Text style={styles.challengePrompt}>{workspace.challengeCard.prompt}</Text>
-            <Text style={styles.challengeHint}>体验版先进入 AI 对话，后续可升级成完整对练模式。</Text>
-            <Pressable style={styles.challengeBtn} onPress={() => onOpenAIChallenge(workspace.challengePrompt)}>
-              <Text style={styles.challengeBtnText}>{workspace.challengeCard.ctaLabel}</Text>
+            <Pressable style={styles.inlineAction} onPress={() => onOpenAIChallenge(workspace.challengePrompt)}>
+              <Text style={styles.inlineActionText}>{workspace.challengeCard.ctaLabel}</Text>
             </Pressable>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>下一步动作</Text>
-          <View style={styles.actionGrid}>
-            <Pressable style={styles.actionCard} onPress={() => onNavigate('search')}>
-              <Text style={styles.actionTitle}>补充更多资料</Text>
-              <Text style={styles.actionDesc}>{`去搜索页继续补充“${workspace.topicLabel}”相关材料。`}</Text>
-            </Pressable>
+        <View style={styles.footerActions}>
+          <Pressable style={styles.footerGhostBtn} onPress={() => onNavigate('search')}>
+            <Text style={styles.footerGhostText}>补充更多资料</Text>
+          </Pressable>
 
-            <Pressable
-              style={styles.actionCard}
-              onPress={async () => {
-                const template = templates[0]?.template;
-                if (!template) return;
-                await recordTemplateUsage(template.id);
-                const noteId = await createNote({
-                  title: `${template.name} - ${workspace.topicLabel}`,
-                  content: `${getTemplateContent(template)}\n\n## 当前 Topic\n- ${workspace.topicLabel}`,
-                  type: 'text',
-                  tags: ['模板', workspace.topicLabel],
-                });
-                onNavigate('document', noteId);
-              }}
-            >
-              <Text style={styles.actionTitle}>落成研究文稿</Text>
-              <Text style={styles.actionDesc}>
-                {templates[0] ? `用「${templates[0].template.name}」把这组线索沉淀下来。` : '把当前 Topic 整理成一份可持续更新的研究文稿。'}
-              </Text>
-            </Pressable>
-          </View>
+          <Pressable
+            style={styles.footerGhostBtn}
+            onPress={async () => {
+              const template = templates[0]?.template;
+              if (!template) return;
+              await recordTemplateUsage(template.id);
+              const noteId = await createNote({
+                title: `${template.name} - ${workspace.topicLabel}`,
+                content: `${getTemplateContent(template)}\n\n## 当前 Topic\n- ${workspace.topicLabel}`,
+                type: 'text',
+                tags: ['模板', workspace.topicLabel],
+              });
+              onNavigate('document', noteId);
+            }}
+          >
+            <Text style={styles.footerGhostText}>沉淀成文稿</Text>
+          </Pressable>
+
+          <Pressable style={styles.bottomAddBtn} onPress={() => setTopicPickerOpen(true)}>
+            <Plus size={17} color="#0f172a" />
+            <Text style={styles.bottomAddText}>切换 Topic</Text>
+          </Pressable>
         </View>
-
-        <Pressable style={styles.bottomAddBtn} onPress={() => setTopicPickerOpen(true)}>
-          <Plus size={17} color="#0f172a" />
-          <Text style={styles.bottomAddText}>新建或切换 Topic</Text>
-        </Pressable>
       </ScrollView>
 
       <TopicPickerSheet
@@ -228,47 +206,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   topicSwitchText: { fontSize: 13, color: '#334155', fontWeight: '700' },
-  pageTitle: { marginTop: 18, fontSize: 34, lineHeight: 40, color: '#0f172a', fontWeight: '900' },
+  pageTitle: { marginTop: 18, fontSize: 30, lineHeight: 36, color: '#0f172a', fontWeight: '900' },
   pageSub: { marginTop: 6, fontSize: 14, lineHeight: 22, color: '#64748b' },
   heroCard: {
     marginTop: 18,
-    borderRadius: 28,
-    backgroundColor: '#f8fbff',
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dbeafe',
+    borderColor: '#e2e8f0',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 15,
   },
-  heroHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   heroTopicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   heroIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
   heroLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
-  heroTitle: { marginTop: 2, fontSize: 24, lineHeight: 30, color: '#111827', fontWeight: '900' },
-  heroPill: { borderRadius: 999, backgroundColor: '#e0f2fe', paddingHorizontal: 9, paddingVertical: 5 },
-  heroPillCustom: { backgroundColor: '#ede9fe' },
-  heroPillText: { fontSize: 11, color: '#075985', fontWeight: '800' },
-  heroPillTextCustom: { color: '#6d28d9' },
-  heroSummary: { marginTop: 12, fontSize: 15, lineHeight: 24, color: '#334155', fontWeight: '600' },
-  heroStats: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  heroStatPill: { borderRadius: 999, backgroundColor: 'white', borderWidth: 1, borderColor: '#dbeafe', paddingHorizontal: 10, paddingVertical: 7 },
-  heroStatText: { fontSize: 12, color: '#1e3a8a', fontWeight: '700' },
+  heroTitle: { marginTop: 2, fontSize: 22, lineHeight: 28, color: '#111827', fontWeight: '800' },
+  heroSummary: { marginTop: 12, fontSize: 15, lineHeight: 23, color: '#334155' },
+  heroMetaRow: { marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  heroMeta: { fontSize: 12, color: '#94a3b8' },
+  heroMetaLink: { fontSize: 12, color: '#475569', fontWeight: '700' },
   section: { marginTop: 20 },
-  sectionTitle: { fontSize: 20, color: '#111827', fontWeight: '900' },
+  sectionTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
   sectionCard: {
     marginTop: 10,
-    borderRadius: 24,
+    borderRadius: 20,
     backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#e7dcc5',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     gap: 2,
   },
   progressRow: {
-    minHeight: 62,
-    borderRadius: 16,
+    minHeight: 58,
+    borderRadius: 14,
     paddingHorizontal: 6,
-    paddingVertical: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -278,82 +251,42 @@ const styles = StyleSheet.create({
   progressBody: { flex: 1 },
   progressTitle: { fontSize: 14, lineHeight: 20, color: '#111827', fontWeight: '700' },
   progressDetail: { marginTop: 4, fontSize: 12, lineHeight: 18, color: '#64748b' },
-  relationCard: {
+  quietCard: {
     marginTop: 10,
-    borderRadius: 24,
-    backgroundColor: '#fff8e8',
-    borderWidth: 1,
-    borderColor: '#f5deb3',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  sectionEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sectionEyebrow: { fontSize: 13, color: '#a16207', fontWeight: '800' },
-  relationTitle: { marginTop: 10, fontSize: 18, lineHeight: 26, color: '#111827', fontWeight: '800' },
-  relationDetail: { marginTop: 8, fontSize: 14, lineHeight: 22, color: '#4b5563' },
-  relationBtn: {
-    marginTop: 14,
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#f2cc84',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  relationBtnText: { fontSize: 13, color: '#92400e', fontWeight: '800' },
-  challengeCard: {
-    marginTop: 10,
-    borderRadius: 24,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#f1d5db',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  challengeHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  challengeBadge: {
-    borderRadius: 999,
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  challengeBadgeText: { fontSize: 12, color: '#b91c1c', fontWeight: '800' },
-  proPill: { borderRadius: 999, backgroundColor: '#ede9fe', paddingHorizontal: 9, paddingVertical: 5 },
-  proPillText: { fontSize: 11, color: '#6d28d9', fontWeight: '800' },
-  challengeEyebrow: { marginTop: 12, fontSize: 13, color: '#7f1d1d', fontWeight: '700' },
-  challengePrompt: { marginTop: 8, fontSize: 15, lineHeight: 24, color: '#1f2937', fontWeight: '600' },
-  challengeHint: { marginTop: 8, fontSize: 12, lineHeight: 18, color: '#9ca3af' },
-  challengeBtn: {
-    marginTop: 14,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  challengeBtnText: { fontSize: 14, color: 'white', fontWeight: '800' },
-  actionGrid: { marginTop: 10, gap: 10 },
-  actionCard: {
     borderRadius: 20,
     backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#e7dcc5',
+    borderColor: '#e5e7eb',
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
-  actionTitle: { fontSize: 15, color: '#111827', fontWeight: '800' },
-  actionDesc: { marginTop: 6, fontSize: 13, lineHeight: 20, color: '#64748b' },
-  bottomAddBtn: {
-    marginTop: 22,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#fff',
+  inlineLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  inlineLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  relationTitle: { marginTop: 10, fontSize: 16, lineHeight: 22, color: '#111827', fontWeight: '700' },
+  relationDetail: { marginTop: 8, fontSize: 14, lineHeight: 21, color: '#4b5563' },
+  inlineAction: { marginTop: 12, alignSelf: 'flex-start', paddingVertical: 4 },
+  inlineActionText: { fontSize: 13, color: '#334155', fontWeight: '700' },
+  challengeHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  challengePro: { fontSize: 11, color: '#9ca3af', fontWeight: '700' },
+  challengeEyebrow: { marginTop: 10, fontSize: 12, color: '#64748b', fontWeight: '700' },
+  challengePrompt: { marginTop: 8, fontSize: 15, lineHeight: 23, color: '#1f2937' },
+  footerActions: { marginTop: 22, gap: 10 },
+  footerGhostBtn: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d6d3d1',
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerGhostText: { fontSize: 14, color: '#334155', fontWeight: '700' },
+  bottomAddBtn: {
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',

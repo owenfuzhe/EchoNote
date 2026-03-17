@@ -186,7 +186,7 @@ function buildRelationCard(topic: string, relation: NoteRelation | null): TopicR
   if (!relation) {
     return {
       title: `“${topic}”还没形成稳定关联`,
-      detail: '等你再积累几篇同主题内容后，这里会自动出现跨笔记的互补或冲突视角。',
+      detail: '再积累几篇同主题内容后，这里会自动出现更有意思的连接。',
       actionLabel: '继续积累材料',
     };
   }
@@ -194,7 +194,7 @@ function buildRelationCard(topic: string, relation: NoteRelation | null): TopicR
   const reason = relation.reason.replace(/^共同标签：|关键词重合：/g, '');
   return {
     title: `${trimText(relation.sourceTitle, 14)} × ${trimText(relation.targetTitle, 14)}`,
-    detail: `系统发现它们在“${reason || '同一问题'}”上形成互补，值得放在一起看。`,
+    detail: `它们在“${reason || '同一问题'}”上可以互相补强，适合放在一起读。`,
     actionLabel: '查看关联笔记',
     noteId: relation.targetNoteId,
   };
@@ -208,7 +208,7 @@ function buildChallenge(topic: string, matchedNotes: Note[], relation: NoteRelat
     : `如果“${topic}”在未来 12 个月成为默认路径，你当前理解里最容易被证伪的部分是什么？请给出反方论据。`;
 
   return {
-    eyebrow: `从《${trimText(anchor, 16)}》延伸出的反方问题`,
+    eyebrow: `给“${trimText(anchor, 12)}”的反方提问`,
     prompt,
     ctaLabel: '开始 Spar 对练',
   };
@@ -251,8 +251,8 @@ export function buildTopicWorkspace(notes: Note[], topic: string, customTopics: 
   const noteCount = matchedNotes.length;
 
   const summary = noteCount
-    ? `AI 已围绕“${trimmedTopic}”聚合 ${noteCount} 篇相关材料，今天新增 ${Math.max(freshCount, 1)} 条值得继续追的进展。`
-    : `这是一个新建 Topic。先补充几篇“${trimmedTopic}”相关内容，系统就会开始生成进展、关联和思辨挑战。`;
+    ? `围绕“${trimmedTopic}”已聚合 ${noteCount} 篇材料，今天有 ${Math.max(freshCount, 1)} 条新进展。`
+    : `这是一个新 Topic。补充几篇相关内容后，这里会开始生成进展和关联。`;
 
   return {
     topicLabel: trimmedTopic,

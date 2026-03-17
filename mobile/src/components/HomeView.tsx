@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BookOpen, Check, ChevronRight, Compass, FileText, Headphones, Sparkles } from 'lucide-react-native';
+import { BookOpen, Check, ChevronRight, Compass, FileText, Sparkles } from 'lucide-react-native';
 import { buildBriefing, getBriefingNotes } from '../services/briefing';
 import { buildTopicWorkspace, getExploreTopicOptions } from '../services/topic-workspace';
 import { useNoteStore } from '../store/noteStore';
@@ -304,29 +304,19 @@ export default function HomeView({
 
           <Pressable style={styles.capsuleCopyArea} onPress={() => setBriefingAdjustOpen(true)}>
             <Text style={styles.capsuleCopy}>{briefing.capsuleText}</Text>
+            <Text style={styles.capsuleSubcopy}>{briefing.oneLiner}</Text>
             <View style={styles.capsuleAdjustRow}>
-              <Text style={styles.capsuleAdjustText}>点击文案调整本期收录内容</Text>
+              <Text style={styles.capsuleAdjustText}>调整本期内容</Text>
               <ChevronRight size={15} color="#64748b" />
             </View>
           </Pressable>
-
-          <View style={styles.capsuleChipRow}>
-            {briefing.notes.map((note) => (
-              <View key={note.id} style={styles.noteChip}>
-                <Text numberOfLines={1} style={styles.noteChipText}>{note.title}</Text>
-              </View>
-            ))}
-          </View>
 
           <View style={styles.capsuleFooter}>
             <Pressable style={styles.readBriefingBtn} onPress={() => onNavigate('briefing')}>
               <BookOpen size={14} color="white" />
               <Text style={styles.readBriefingText}>阅读简报</Text>
             </Pressable>
-            <View style={styles.proTeaser}>
-              <Headphones size={12} color="#7c2d12" />
-              <Text style={styles.proTeaserText}>播客版为 Pro 预留</Text>
-            </View>
+            <Text style={styles.capsuleFooterText}>{briefing.dateLabel}</Text>
           </View>
         </View>
 
@@ -345,33 +335,21 @@ export default function HomeView({
                 <Text style={styles.topicCardTitle}>{topicWorkspace.topicLabel}</Text>
               </View>
             </View>
-            <View style={[styles.topicSourcePill, topicWorkspace.topicSource === 'custom' && styles.topicSourcePillCustom]}>
-              <Text style={[styles.topicSourceText, topicWorkspace.topicSource === 'custom' && styles.topicSourceTextCustom]}>
-                {topicWorkspace.topicSource === 'custom' ? '手动设置' : 'AI 识别'}
-              </Text>
-            </View>
+            <Text style={styles.topicCardTag}>{topicWorkspace.topicSource === 'custom' ? '手动设置' : 'AI 识别'}</Text>
           </View>
 
           <Text style={styles.topicSummary}>{topicWorkspace.summary}</Text>
 
-          <View style={styles.topicStatRow}>
-            <View style={styles.topicStatPill}>
-              <Text style={styles.topicStatText}>{`${Math.max(topicWorkspace.freshCount, topicWorkspace.noteCount ? 1 : 0)} 条今日进展`}</Text>
-            </View>
-            <View style={styles.topicStatPill}>
-              <Text style={styles.topicStatText}>{`${Math.max(topicWorkspace.relationCount, topicWorkspace.noteCount ? 1 : 0)} 个关联视角`}</Text>
-            </View>
-            <View style={styles.topicStatPill}>
-              <Text style={styles.topicStatText}>1 个 Spar 挑战</Text>
-            </View>
-          </View>
+          <Text style={styles.topicQuietMeta}>
+            {`${Math.max(topicWorkspace.freshCount, topicWorkspace.noteCount ? 1 : 0)} 条进展 · ${Math.max(topicWorkspace.relationCount, topicWorkspace.noteCount ? 1 : 0)} 个关联视角 · 1 个挑战`}
+          </Text>
 
           <View style={styles.topicCardFooter}>
             <Pressable style={styles.topicPrimaryBtn} onPress={() => onNavigate('explore')}>
               <Text style={styles.topicPrimaryText}>继续探索</Text>
             </Pressable>
-            <Pressable style={styles.topicGhostBtn} onPress={() => setTopicPickerOpen(true)}>
-              <Text style={styles.topicGhostText}>调整 Topic</Text>
+            <Pressable style={styles.topicTextBtn} onPress={() => setTopicPickerOpen(true)}>
+              <Text style={styles.topicTextBtnText}>调整 Topic</Text>
             </Pressable>
           </View>
         </View>
@@ -564,45 +542,37 @@ const styles = StyleSheet.create({
   capsuleTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
   capsuleMeta: { fontSize: 12, color: '#92400e', backgroundColor: '#fff3d6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden', fontWeight: '700' },
   capsuleCopyArea: { marginTop: 12, borderRadius: 18, backgroundColor: '#fffcf3', borderWidth: 1, borderColor: '#efe4c9', paddingHorizontal: 14, paddingVertical: 14 },
-  capsuleCopy: { fontSize: 15, lineHeight: 24, color: '#1f2937', fontWeight: '600' },
-  capsuleAdjustRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  capsuleAdjustText: { fontSize: 12, color: '#64748b', fontWeight: '600' },
-  capsuleChipRow: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  noteChip: { borderRadius: 999, backgroundColor: '#f3f4f6', paddingHorizontal: 10, paddingVertical: 7, maxWidth: '100%' },
-  noteChipText: { fontSize: 12, color: '#374151', fontWeight: '600' },
-  capsuleFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  capsuleCopy: { fontSize: 15, lineHeight: 22, color: '#1f2937', fontWeight: '700' },
+  capsuleSubcopy: { marginTop: 8, fontSize: 13, lineHeight: 20, color: '#64748b' },
+  capsuleAdjustRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4 },
+  capsuleAdjustText: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  capsuleFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   readBriefingBtn: { height: 38, borderRadius: 12, backgroundColor: '#111827', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   readBriefingText: { fontSize: 13, color: 'white', fontWeight: '800' },
-  proTeaser: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10 },
-  proTeaserText: { fontSize: 12, color: '#7c2d12', fontWeight: '700' },
+  capsuleFooterText: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
 
   topicCard: {
     marginTop: 12,
-    backgroundColor: '#f8fbff',
-    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#dbeafe',
+    borderColor: '#e2e8f0',
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
   topicCardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
   topicCardHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  topicIconWrap: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
+  topicIconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
   topicCardLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
-  topicCardTitle: { marginTop: 2, fontSize: 20, lineHeight: 26, color: '#0f172a', fontWeight: '900' },
-  topicSourcePill: { borderRadius: 999, backgroundColor: '#e0f2fe', paddingHorizontal: 9, paddingVertical: 5 },
-  topicSourcePillCustom: { backgroundColor: '#ede9fe' },
-  topicSourceText: { fontSize: 11, color: '#0c4a6e', fontWeight: '800' },
-  topicSourceTextCustom: { color: '#6d28d9' },
-  topicSummary: { marginTop: 12, fontSize: 14, lineHeight: 22, color: '#334155', fontWeight: '600' },
-  topicStatRow: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  topicStatPill: { borderRadius: 999, backgroundColor: 'white', paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: '#dbeafe' },
-  topicStatText: { fontSize: 12, color: '#1e3a8a', fontWeight: '700' },
-  topicCardFooter: { marginTop: 14, flexDirection: 'row', gap: 10 },
-  topicPrimaryBtn: { flex: 1, height: 42, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
+  topicCardTitle: { marginTop: 2, fontSize: 18, lineHeight: 24, color: '#0f172a', fontWeight: '800' },
+  topicCardTag: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
+  topicSummary: { marginTop: 12, fontSize: 14, lineHeight: 21, color: '#334155' },
+  topicQuietMeta: { marginTop: 10, fontSize: 12, lineHeight: 18, color: '#94a3b8' },
+  topicCardFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  topicPrimaryBtn: { minWidth: 108, height: 40, borderRadius: 12, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   topicPrimaryText: { fontSize: 14, color: 'white', fontWeight: '800' },
-  topicGhostBtn: { flex: 1, height: 42, borderRadius: 14, backgroundColor: 'white', borderWidth: 1, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
-  topicGhostText: { fontSize: 14, color: '#334155', fontWeight: '700' },
+  topicTextBtn: { paddingHorizontal: 4, paddingVertical: 6 },
+  topicTextBtnText: { fontSize: 13, color: '#64748b', fontWeight: '700' },
 
   sheetMask: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.24)' },
   adjustSheet: {

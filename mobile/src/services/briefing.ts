@@ -130,13 +130,13 @@ export function buildBriefing(notes: Note[]): BriefingPayload {
 
   const capsuleText =
     noteCount > 1
-      ? `刚刚为你打包了《${leadTitle}》等 ${noteCount} 篇近期高价值内容，整理成一页式的深读简报。`
-      : `刚刚为你整理了《${leadTitle}》的核心结论与行动建议。`;
+      ? `已为你整理 ${noteCount} 篇近期内容，生成一页简报。`
+      : `已为你整理《${leadTitle}》的简版结论。`;
 
   const oneLiner =
     sections.length > 1
-      ? `当前这组内容主要围绕 ${topicLabel} 展开，核心趋势是从“信息收集”转向“结构化理解与持续追踪”。`
-      : `这篇内容的核心价值在于把零散信息压缩成可执行的判断与下一步动作。`;
+      ? `这组内容都围绕 ${topicLabel} 展开，重点是把零散信息收束成更清晰的判断。`
+      : `这篇内容最值得保留的是一个可以继续展开的核心判断。`;
 
   return {
     title: `今日深读简报：${topicLabel}`,

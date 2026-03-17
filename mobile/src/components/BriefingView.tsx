@@ -43,8 +43,7 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
             onPress={() => Alert.alert('升级为播客', '播客版简报将作为 Pro 功能开放，并带有额度提示。')}
           >
             <Headphones size={14} color="#0f172a" />
-            <Text style={styles.proPillText}>升级为播客</Text>
-            <Text style={styles.proQuota}>Pro</Text>
+            <Text style={styles.proPillText}>播客 Pro</Text>
           </Pressable>
         </View>
 
@@ -57,7 +56,7 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
         </View>
 
         <View style={styles.analysisBlock}>
-          <Text style={styles.sectionEyebrow}>深度解析</Text>
+          <Text style={styles.sectionEyebrow}>要点</Text>
           {briefing.sections.map((section, index) => (
             <View key={section.id} style={styles.sectionCard}>
               <View style={styles.sectionTitleRow}>
@@ -67,8 +66,8 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
                   <Text style={styles.sectionSource}>{section.source}</Text>
                 </View>
               </View>
-              <Text style={styles.sectionBullet}>{`• 核心观点：${section.insight}`}</Text>
-              <Text style={styles.sectionBullet}>{`• ${section.action}`}</Text>
+              <Text style={styles.sectionInsight}>{section.insight}</Text>
+              <Text style={styles.sectionAction}>{section.action}</Text>
             </View>
           ))}
         </View>
@@ -78,14 +77,6 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
           <Text style={styles.sourcesBtnText}>{`查看 ${briefing.notes.length} 篇原文链接`}</Text>
           <ChevronRight size={16} color="#64748b" />
         </Pressable>
-
-        <View style={styles.proHintCard}>
-          <Headphones size={16} color="#7c2d12" />
-          <View style={styles.proHintTextWrap}>
-            <Text style={styles.proHintTitle}>播客版简报预留为 Pro 能力</Text>
-            <Text style={styles.proHintDesc}>后续会在这里接入语音播报与额度提示，先保留升级入口。</Text>
-          </View>
-        </View>
       </ScrollView>
 
       <Modal visible={sourcesOpen} transparent animationType="slide" onRequestClose={() => setSourcesOpen(false)}>
@@ -129,92 +120,65 @@ const styles = StyleSheet.create({
   backIconBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backIconText: { fontSize: 15, color: '#0f172a', fontWeight: '700' },
   proPill: {
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f9e7bd',
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#f5f5f4',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: '#f3d28a',
+    borderColor: '#e7e5e4',
   },
-  proPillText: { fontSize: 13, color: '#0f172a', fontWeight: '700' },
-  proQuota: {
-    fontSize: 11,
-    color: '#7c2d12',
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 999,
-    overflow: 'hidden',
-    fontWeight: '800',
-  },
-  title: { marginTop: 18, fontSize: 34, lineHeight: 42, color: '#0f172a', fontWeight: '900' },
+  proPillText: { fontSize: 13, color: '#44403c', fontWeight: '700' },
+  title: { marginTop: 18, fontSize: 30, lineHeight: 36, color: '#0f172a', fontWeight: '900' },
   meta: { marginTop: 8, fontSize: 14, color: '#64748b', fontWeight: '600' },
   summaryBlock: {
     marginTop: 22,
-    borderRadius: 24,
-    backgroundColor: '#fff8eb',
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#efd8ac',
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    borderColor: '#e7e5e4',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   analysisBlock: {
     marginTop: 18,
-    borderRadius: 28,
+    borderRadius: 20,
     backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#e7dcc5',
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-  },
-  sectionEyebrow: { fontSize: 15, color: '#92400e', fontWeight: '800' },
-  summaryText: { marginTop: 10, fontSize: 18, lineHeight: 30, color: '#292524', fontWeight: '600' },
-  sectionCard: {
-    marginTop: 14,
-    borderRadius: 20,
-    backgroundColor: '#fcfaf5',
+    borderColor: '#e7e5e4',
     paddingHorizontal: 14,
     paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: '#ede3cf',
+  },
+  sectionEyebrow: { fontSize: 13, color: '#78716c', fontWeight: '800' },
+  summaryText: { marginTop: 8, fontSize: 17, lineHeight: 28, color: '#292524' },
+  sectionCard: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f4',
   },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  sectionIndex: { fontSize: 18, color: '#a16207', fontWeight: '800', width: 34 },
+  sectionIndex: { fontSize: 16, color: '#a16207', fontWeight: '800', width: 28 },
   sectionTitleWrap: { flex: 1 },
-  sectionTitle: { fontSize: 17, lineHeight: 24, color: '#111827', fontWeight: '800' },
-  sectionSource: { marginTop: 3, fontSize: 12, color: '#78716c', fontWeight: '600' },
-  sectionBullet: { marginTop: 10, fontSize: 15, lineHeight: 23, color: '#1f2937' },
+  sectionTitle: { fontSize: 16, lineHeight: 22, color: '#111827', fontWeight: '700' },
+  sectionSource: { marginTop: 2, fontSize: 12, color: '#a8a29e' },
+  sectionInsight: { marginTop: 8, fontSize: 14, lineHeight: 22, color: '#1f2937' },
+  sectionAction: { marginTop: 6, fontSize: 13, lineHeight: 20, color: '#78716c' },
   sourcesBtn: {
     marginTop: 18,
-    height: 50,
-    borderRadius: 16,
+    height: 46,
+    borderRadius: 14,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#d6d3d1',
+    borderColor: '#e7e5e4',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   sourcesBtnText: { fontSize: 14, color: '#0f172a', fontWeight: '800' },
-  proHintCard: {
-    marginTop: 18,
-    borderRadius: 18,
-    backgroundColor: '#fff3e6',
-    borderWidth: 1,
-    borderColor: '#f4cf9f',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  proHintTextWrap: { flex: 1 },
-  proHintTitle: { fontSize: 14, color: '#7c2d12', fontWeight: '800' },
-  proHintDesc: { marginTop: 5, fontSize: 13, lineHeight: 19, color: '#9a3412' },
   sheetMask: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.24)' },
   sheet: {
     backgroundColor: '#fffdf8',
