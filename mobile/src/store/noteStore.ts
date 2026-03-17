@@ -20,11 +20,45 @@ interface NoteState {
 
 const STORAGE_KEY = 'crispynote_notes_mobile';
 const genId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const NOTE_TYPES = new Set<Note['type']>(['voice', 'text', 'ai', 'link', 'file', 'image']);
 const sortNotes = (notes: Note[]) => [...notes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+function ensureString(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function ensureStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [] as string[];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function normalizeStoredNote(rawNote: any): Note {
+  const now = new Date().toISOString();
+  const title = ensureString(rawNote?.title, '').trim() || '未命名笔记';
+  const content = ensureString(rawNote?.content, '');
+  const type = NOTE_TYPES.has(rawNote?.type) ? rawNote.type : 'text';
+  const createdAt = ensureString(rawNote?.createdAt, now);
+  const updatedAt = ensureString(rawNote?.updatedAt, createdAt || now);
+
+  return {
+    id: ensureString(rawNote?.id, genId()),
+    title,
+    content,
+    type,
+    sourceUrl: ensureString(rawNote?.sourceUrl, '') || undefined,
+    snapshotHtml: ensureString(rawNote?.snapshotHtml, '') || undefined,
+    tags: ensureStringArray(rawNote?.tags),
+    todos: Array.isArray(rawNote?.todos) ? rawNote.todos : [],
+    emoji: ensureString(rawNote?.emoji, '') || undefined,
+    createdAt,
+    updatedAt,
+  };
+}
 
 async function readLocalNotes() {
   const raw = await AsyncStorage.getItem(STORAGE_KEY);
-  return raw ? (JSON.parse(raw) as Note[]) : [];
+  const parsed = raw ? JSON.parse(raw) : [];
+  return Array.isArray(parsed) ? parsed.map(normalizeStoredNote) : [];
 }
 
 async function writeLocalNotes(notes: Note[]) {
@@ -47,8 +81,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       } catch (remoteError: any) {
         const localNotes = await readLocalNotes();
         if (localNotes.length > 0) {
+          const normalized = sortNotes(localNotes);
+          await writeLocalNotes(normalized);
           set({
-            notes: sortNotes(localNotes),
+            notes: normalized,
             isLoading: false,
             error: `云端笔记暂不可用，已切换到本地缓存：${remoteError?.message || 'unknown error'}`,
           });
@@ -56,10 +92,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         }
       }
 
-      const notes = sortNotes(MOCK_NOTES_200);
-      await writeLocalNotes(notes);
+      const demoNotes = sortNotes(MOCK_NOTES_200);
+      await writeLocalNotes(demoNotes);
       set({
-        notes,
+        notes: demoNotes,
         isLoading: false,
         error: '当前使用本地演示数据。Supabase 登录与云同步接通后，这里会自动切到真实云端数据。',
       });

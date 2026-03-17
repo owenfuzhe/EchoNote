@@ -13,11 +13,14 @@ import SearchView from './src/components/SearchView';
 import TasksView from './src/components/TasksView';
 import ExploreView from './src/components/ExploreView';
 import AIChatView from './src/components/AIChatView';
+import BriefingView from './src/components/BriefingView';
 import BottomNav from './src/components/BottomNav';
 import VoiceCapture from './src/components/VoiceCapture';
 import CaptureMenu from './src/components/CaptureMenu';
 import { fetchContent, isWechatUrl, isXiaohongshuUrl } from './src/services/contentFetcher';
 import { BACKEND_KEY, DEFAULT_BACKEND } from './src/services/backend-config';
+import { getDefaultBriefingNoteIds } from './src/services/briefing';
+import { getDefaultExploreTopic, getExploreTopicOptions } from './src/services/topic-workspace';
 import { bindSupabaseAuthLifecycle, ensureSupabaseUser, isSupabaseConfigured, supabase } from './src/services/supabase';
 import { useNoteStore } from './src/store/noteStore';
 import { AppView, Note } from './src/types';
@@ -32,8 +35,11 @@ export default function App() {
   const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND);
   const [aiDraftInput, setAiDraftInput] = useState('');
   const [aiDraftVersion, setAiDraftVersion] = useState(0);
+  const [briefingNoteIds, setBriefingNoteIds] = useState<string[]>([]);
+  const [exploreTopic, setExploreTopic] = useState('');
+  const [customExploreTopics, setCustomExploreTopics] = useState<string[]>([]);
 
-  const { fetchNotes, createNote } = useNoteStore();
+  const { notes, fetchNotes, createNote } = useNoteStore();
 
   useEffect(() => {
     (async () => {
@@ -67,6 +73,24 @@ export default function App() {
       subscription.unsubscribe();
     };
   }, [fetchNotes]);
+
+  useEffect(() => {
+    if (!notes.length) return;
+
+    setBriefingNoteIds((current) => {
+      const valid = current.filter((id) => notes.some((note) => note.id === id));
+      return valid.length ? valid : getDefaultBriefingNoteIds(notes);
+    });
+  }, [notes]);
+
+  useEffect(() => {
+    if (!notes.length && !customExploreTopics.length) return;
+
+    const options = getExploreTopicOptions(notes, customExploreTopics);
+    const valid = new Set(options.map((option) => option.label));
+    const nextDefault = getDefaultExploreTopic(notes, customExploreTopics);
+    setExploreTopic((current) => (current && valid.has(current) ? current : nextDefault));
+  }, [notes, customExploreTopics]);
 
   const handleNavigate = (view: AppView, noteId?: string) => {
     if (noteId) {
@@ -116,13 +140,18 @@ export default function App() {
   const handleFileCapture = async (type?: 'pdf' | 'audio') => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: type === 'audio' ? ['audio/*'] : ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        type:
+          type === 'audio'
+            ? ['audio/*']
+            : ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets?.[0]) return;
       const file = result.assets[0];
       const title = file.name?.replace(/\.[^/.]+$/, '') || '文件笔记';
-      const content = `【文件信息】\n\n文件名：${file.name}\n类型：${file.mimeType || '未知'}\n大小：${((file.size || 0) / 1024).toFixed(2)} KB\n\n> 移动端首版暂未内置文件正文解析`; 
+      const content = `【文件信息】\n\n文件名：${file.name}\n类型：${file.mimeType || '未知'}\n大小：${((file.size || 0) / 1024).toFixed(
+        2
+      )} KB\n\n> 移动端首版暂未内置文件正文解析`;
       const id = await createNote({ title, content, type: 'text', tags: [type === 'audio' ? '音频' : '文件'] });
       handleNavigate('document', id);
       setIsCaptureMenuOpen(false);
@@ -216,19 +245,62 @@ export default function App() {
     else if (skillId === 'tasks') setCurrentView('tasks');
   };
 
+  const handleSelectExploreTopic = (topic: string) => {
+    const next = topic.trim();
+    if (!next) return;
+    setExploreTopic(next);
+  };
+
+  const handleCreateExploreTopic = (topic: string) => {
+    const next = topic.trim();
+    if (!next) return;
+    setCustomExploreTopics((current) => (current.includes(next) ? current : [...current, next]));
+    setExploreTopic(next);
+  };
+
+  const handleOpenAIChallenge = (prompt: string) => {
+    const next = prompt.trim();
+    if (!next) return;
+    setAiDraftInput(next);
+    setAiDraftVersion((v) => v + 1);
+    setCurrentView('aiChat');
+  };
+
   return (
     <GestureHandlerRootView style={styles.app}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.app} edges={['top', 'left', 'right']}>
           <StatusBar barStyle="dark-content" />
 
-          {currentView === 'home' && <HomeView onNavigate={handleNavigate} />}
+          {currentView === 'home' && (
+            <HomeView
+              onNavigate={handleNavigate}
+              briefingNoteIds={briefingNoteIds}
+              onUpdateBriefingNoteIds={setBriefingNoteIds}
+              exploreTopic={exploreTopic}
+              customExploreTopics={customExploreTopics}
+              onSelectExploreTopic={handleSelectExploreTopic}
+              onCreateExploreTopic={handleCreateExploreTopic}
+            />
+          )}
           {currentView === 'library' && <LibraryView onNavigate={handleNavigate} />}
-          {currentView === 'document' && <DocumentView onNavigate={handleNavigate} noteId={selectedNoteId} draftNote={draftNote} onPersistDraft={handlePersistDraft} />}
+          {currentView === 'document' && (
+            <DocumentView onNavigate={handleNavigate} noteId={selectedNoteId} draftNote={draftNote} onPersistDraft={handlePersistDraft} />
+          )}
           {currentView === 'search' && <SearchView onNavigate={handleNavigate} onClose={() => setCurrentView('home')} />}
           {currentView === 'tasks' && <TasksView onNavigate={handleNavigate} />}
-          {currentView === 'explore' && <ExploreView onNavigate={handleNavigate} />}
+          {currentView === 'explore' && (
+            <ExploreView
+              onNavigate={handleNavigate}
+              currentTopic={exploreTopic}
+              customTopics={customExploreTopics}
+              onSelectTopic={handleSelectExploreTopic}
+              onCreateTopic={handleCreateExploreTopic}
+              onOpenAIChallenge={handleOpenAIChallenge}
+            />
+          )}
           {currentView === 'aiChat' && <AIChatView onNavigate={handleNavigate} initialInput={aiDraftInput} initialInputVersion={aiDraftVersion} />}
+          {currentView === 'briefing' && <BriefingView onNavigate={handleNavigate} selectedNoteIds={briefingNoteIds} />}
 
           {currentView !== 'document' && (
             <BottomNav

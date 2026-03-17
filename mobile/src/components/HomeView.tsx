@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BookOpen, ChevronRight, Compass, FileText, Headphones, MessageSquare } from 'lucide-react-native';
+import { BookOpen, Check, ChevronRight, Compass, FileText, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import {
   NativeViewGestureHandler,
@@ -9,12 +9,23 @@ import {
   PanGestureHandlerStateChangeEvent,
   State,
 } from 'react-native-gesture-handler';
+import { buildBriefing, getBriefingNotes } from '../services/briefing';
+import { buildTopicWorkspace, getExploreTopicOptions } from '../services/topic-workspace';
 import { useNoteStore } from '../store/noteStore';
 import { mobileType } from '../theme/typography';
 import { AppView, Note } from '../types';
 import { richTextToPlainText } from '../utils/richText';
+import TopicPickerSheet from './TopicPickerSheet';
 
-interface Props { onNavigate: (view: AppView, noteId?: string) => void }
+interface Props {
+  onNavigate: (view: AppView, noteId?: string) => void;
+  briefingNoteIds: string[];
+  onUpdateBriefingNoteIds: (ids: string[]) => void;
+  exploreTopic: string;
+  customExploreTopics: string[];
+  onSelectExploreTopic: (topic: string) => void;
+  onCreateExploreTopic: (topic: string) => void;
+}
 
 const SWIPE_TRIGGER_RIGHT = 42;
 const SWIPE_TRIGGER_LEFT = 36;
@@ -24,20 +35,37 @@ const SWIPE_VELOCITY_TRIGGER_LEFT = 0.28;
 const SWIPE_NUDGE_THRESHOLD = 8;
 const PAN_ACTIVE_OFFSET_X = 10;
 const PAN_FAIL_OFFSET_Y = 12;
+const DEFAULT_BRIEFING_COUNT = 3;
+const MAX_BRIEFING_COUNT = 5;
 
-export default function HomeView({ onNavigate }: Props) {
+export default function HomeView({
+  onNavigate,
+  briefingNoteIds,
+  onUpdateBriefingNoteIds,
+  exploreTopic,
+  customExploreTopics,
+  onSelectExploreTopic,
+  onCreateExploreTopic,
+}: Props) {
   const { notes, updateNote } = useNoteStore();
   const recent = useMemo(() => notes.slice(0, 8), [notes]);
+  const briefingPool = useMemo(() => notes.slice(0, 6), [notes]);
+  const briefingNotes = useMemo(() => getBriefingNotes(briefingPool, briefingNoteIds), [briefingPool, briefingNoteIds]);
+  const briefing = useMemo(() => buildBriefing(briefingNotes), [briefingNotes]);
+  const topicOptions = useMemo(() => getExploreTopicOptions(notes, customExploreTopics), [notes, customExploreTopics]);
+  const topicWorkspace = useMemo(() => buildTopicWorkspace(notes, exploreTopic, customExploreTopics), [notes, exploreTopic, customExploreTopics]);
 
   const [quickReadOpen, setQuickReadOpen] = useState(false);
   const [quickIndex, setQuickIndex] = useState(0);
   const [, setSwipeHint] = useState<'next' | 'read' | null>(null);
   const [feedback, setFeedback] = useState('');
   const [quickBodyScrollEnabled, setQuickBodyScrollEnabled] = useState(true);
-  const [bodySwipeNudge, setBodySwipeNudge] = useState<'next' | 'read' | null>(null);
+  const [, setBodySwipeNudge] = useState<'next' | 'read' | null>(null);
   const bodyNudgeHapticRef = useRef<'next' | 'read' | null>(null);
   const panRef = useRef<any>(null);
   const nativeScrollRef = useRef<any>(null);
+  const [briefingAdjustOpen, setBriefingAdjustOpen] = useState(false);
+  const [topicPickerOpen, setTopicPickerOpen] = useState(false);
 
   const translateX = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -287,6 +315,24 @@ export default function HomeView({ onNavigate }: Props) {
     handlePanMove(translationX);
     updateBodyNudge(translationX, translationY);
   };
+  const toggleBriefingNote = (noteId: string) => {
+    const selectedSet = new Set(briefingNoteIds);
+
+    if (selectedSet.has(noteId)) {
+      if (selectedSet.size <= 1) return;
+      selectedSet.delete(noteId);
+      onUpdateBriefingNoteIds(Array.from(selectedSet));
+      return;
+    }
+
+    if (selectedSet.size >= MAX_BRIEFING_COUNT) return;
+    selectedSet.add(noteId);
+    onUpdateBriefingNoteIds(Array.from(selectedSet));
+  };
+
+  const resetBriefingNotes = () => {
+    onUpdateBriefingNoteIds(briefingPool.slice(0, DEFAULT_BRIEFING_COUNT).map((note) => note.id));
+  };
 
   const handleCardPanStateChange = (event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX, translationY, velocityX, velocityY } = event.nativeEvent;
@@ -346,18 +392,32 @@ export default function HomeView({ onNavigate }: Props) {
           <Text style={styles.sTitle}>快速消化</Text>
         </View>
 
-        <View style={styles.blockCard}>
-          <View style={styles.blockHead}><Headphones size={16} color="#4f46e5" /><Text style={styles.blockTitle}>快速消化</Text></View>
-          <Text style={styles.blockDesc}>把最近导入内容快速变成可听可读的结构化信息。</Text>
-          <View style={styles.actionRow}>
-            <Pressable style={styles.primaryAction} onPress={() => onNavigate('explore')}>
-              <Headphones size={14} color="white" />
-              <Text style={styles.primaryActionText}>AI 播客</Text>
+        <View style={styles.capsuleCard}>
+          <View style={styles.capsuleHead}>
+            <View style={styles.capsuleHeadLeft}>
+              <View style={styles.capsuleIconWrap}>
+                <Sparkles size={15} color="#111827" />
+              </View>
+              <Text style={styles.capsuleTitle}>快速消化</Text>
+            </View>
+            <Text style={styles.capsuleMeta}>{briefing.coverageLabel}</Text>
+          </View>
+
+          <Pressable style={styles.capsuleCopyArea} onPress={() => setBriefingAdjustOpen(true)}>
+            <Text style={styles.capsuleCopy}>{briefing.capsuleText}</Text>
+            <Text style={styles.capsuleSubcopy}>{briefing.oneLiner}</Text>
+            <View style={styles.capsuleAdjustRow}>
+              <Text style={styles.capsuleAdjustText}>调整本期内容</Text>
+              <ChevronRight size={15} color="#64748b" />
+            </View>
+          </Pressable>
+
+          <View style={styles.capsuleFooter}>
+            <Pressable style={styles.readBriefingBtn} onPress={() => onNavigate('briefing')}>
+              <BookOpen size={14} color="white" />
+              <Text style={styles.readBriefingText}>阅读简报</Text>
             </Pressable>
-            <Pressable style={styles.secondaryAction} onPress={() => onNavigate('aiChat')}>
-              <FileText size={14} color="#334155" />
-              <Text style={styles.secondaryActionText}>简报</Text>
-            </Pressable>
+            <Text style={styles.capsuleFooterText}>{briefing.dateLabel}</Text>
           </View>
         </View>
 
@@ -365,23 +425,89 @@ export default function HomeView({ onNavigate }: Props) {
           <Text style={styles.sTitle}>深度探索</Text>
         </View>
 
-        <View style={styles.blockCard}>
-          <View style={styles.blockHead}><Compass size={16} color="#2563eb" /><Text style={styles.blockTitle}>深度探索</Text></View>
-          <Text style={styles.blockDesc}>设置感兴趣 topic，持续追踪并进行 guided learning。</Text>
-          <View style={styles.actionColumn}>
-            <Pressable style={styles.linkRow} onPress={() => onNavigate('search')}>
-              <BookOpen size={15} color="#1d4ed8" />
-              <Text style={styles.linkText}>设置 Topic 追踪</Text>
-              <ChevronRight size={15} color="#94a3b8" />
+        <View style={styles.topicCard}>
+          <View style={styles.topicCardHead}>
+            <View style={styles.topicCardHeadLeft}>
+              <View style={styles.topicIconWrap}>
+                <Compass size={15} color="#2563eb" />
+              </View>
+              <View>
+                <Text style={styles.topicCardLabel}>追踪中的 Topic</Text>
+                <Text style={styles.topicCardTitle}>{topicWorkspace.topicLabel}</Text>
+              </View>
+            </View>
+            <Text style={styles.topicCardTag}>{topicWorkspace.topicSource === 'custom' ? '手动设置' : 'AI 识别'}</Text>
+          </View>
+
+          <Text style={styles.topicSummary}>{topicWorkspace.summary}</Text>
+
+          <Text style={styles.topicQuietMeta}>
+            {`${Math.max(topicWorkspace.freshCount, topicWorkspace.noteCount ? 1 : 0)} 条进展 · ${Math.max(topicWorkspace.relationCount, topicWorkspace.noteCount ? 1 : 0)} 个关联视角 · 1 个挑战`}
+          </Text>
+
+          <View style={styles.topicCardFooter}>
+            <Pressable style={styles.topicPrimaryBtn} onPress={() => onNavigate('explore')}>
+              <Text style={styles.topicPrimaryText}>继续探索</Text>
             </Pressable>
-            <Pressable style={styles.linkRow} onPress={() => onNavigate('aiChat')}>
-              <MessageSquare size={15} color="#1d4ed8" />
-              <Text style={styles.linkText}>开始 Guided Learning</Text>
-              <ChevronRight size={15} color="#94a3b8" />
+            <Pressable style={styles.topicTextBtn} onPress={() => setTopicPickerOpen(true)}>
+              <Text style={styles.topicTextBtnText}>调整 Topic</Text>
             </Pressable>
           </View>
         </View>
       </ScrollView>
+
+      <Modal visible={briefingAdjustOpen} transparent animationType="slide" onRequestClose={() => setBriefingAdjustOpen(false)}>
+        <View style={styles.sheetMask}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setBriefingAdjustOpen(false)} />
+          <View style={styles.adjustSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>调整本期简报内容</Text>
+            <Text style={styles.sheetDesc}>建议保留 3 到 5 篇。点击文稿卡片即可增减收录内容。</Text>
+
+            <View style={styles.sheetSummary}>
+              <Text style={styles.sheetSummaryTitle}>{briefing.title}</Text>
+              <Text style={styles.sheetSummaryText}>{briefing.oneLiner}</Text>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetList}>
+              {briefingPool.map((note) => {
+                const selected = briefingNoteIds.includes(note.id);
+                return (
+                  <Pressable key={note.id} style={[styles.sheetNoteCard, selected && styles.sheetNoteCardSelected]} onPress={() => toggleBriefingNote(note.id)}>
+                    <View style={[styles.checkWrap, selected && styles.checkWrapSelected]}>
+                      {selected ? <Check size={14} color="white" /> : null}
+                    </View>
+                    <View style={styles.sheetNoteBody}>
+                      <Text numberOfLines={2} style={styles.sheetNoteTitle}>{note.title}</Text>
+                      <Text style={styles.sheetNoteMeta}>{`${extractSite(note)} · ${format(note.updatedAt)}`}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.sheetActionRow}>
+              <Pressable style={styles.sheetGhostBtn} onPress={resetBriefingNotes}>
+                <Text style={styles.sheetGhostText}>恢复默认 3 篇</Text>
+              </Pressable>
+              <Pressable style={styles.sheetPrimaryBtn} onPress={() => setBriefingAdjustOpen(false)}>
+                <Text style={styles.sheetPrimaryText}>{`完成（${briefing.notes.length} 篇）`}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <TopicPickerSheet
+        visible={topicPickerOpen}
+        title="调整深度探索 Topic"
+        description="选择一个你想持续追踪的问题空间。首页和探索页会围绕它生成进展、关联和思辨挑战。"
+        currentTopic={topicWorkspace.topicLabel}
+        topicOptions={topicOptions}
+        onSelectTopic={onSelectExploreTopic}
+        onCreateTopic={onCreateExploreTopic}
+        onClose={() => setTopicPickerOpen(false)}
+      />
 
       <Modal visible={quickReadOpen} transparent animationType="fade" onRequestClose={() => setQuickReadOpen(false)}>
         <View style={styles.modalMask}>
@@ -529,19 +655,98 @@ const styles = StyleSheet.create({
   noteTitle: { ...mobileType.cardTitle, minHeight: 44 },
   noteSite: { marginTop: 2, fontSize: 12, color: '#6b7280' },
   noteTime: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
+  capsuleCard: {
+    marginTop: 12,
+    backgroundColor: '#fffef9',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#e8dfce',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2,
+  },
+  capsuleHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  capsuleHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  capsuleIconWrap: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f7ead1', alignItems: 'center', justifyContent: 'center' },
+  capsuleTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
+  capsuleMeta: { fontSize: 12, color: '#92400e', backgroundColor: '#fff3d6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden', fontWeight: '700' },
+  capsuleCopyArea: { marginTop: 12, borderRadius: 18, backgroundColor: '#fffcf3', borderWidth: 1, borderColor: '#efe4c9', paddingHorizontal: 14, paddingVertical: 14 },
+  capsuleCopy: { fontSize: 15, lineHeight: 22, color: '#1f2937', fontWeight: '700' },
+  capsuleSubcopy: { marginTop: 8, fontSize: 13, lineHeight: 20, color: '#64748b' },
+  capsuleAdjustRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4 },
+  capsuleAdjustText: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  capsuleFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  readBriefingBtn: { height: 38, borderRadius: 12, backgroundColor: '#111827', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  readBriefingText: { fontSize: 13, color: 'white', fontWeight: '800' },
+  capsuleFooterText: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
 
-  blockCard: { marginTop: 12, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', padding: 14 },
-  blockHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  blockTitle: { ...mobileType.sectionTitle, fontSize: 17, lineHeight: 21 },
-  blockDesc: { marginTop: 8, fontSize: 13, color: '#64748b', lineHeight: 19 },
-  actionRow: { marginTop: 12, flexDirection: 'row', gap: 8 },
-  primaryAction: { flex: 1, height: 38, borderRadius: 12, backgroundColor: '#4f46e5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  primaryActionText: { fontSize: 13, color: 'white', fontWeight: '700' },
-  secondaryAction: { flex: 1, height: 38, borderRadius: 12, backgroundColor: '#eef2ff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  secondaryActionText: { fontSize: 13, color: '#334155', fontWeight: '700' },
-  actionColumn: { marginTop: 10, gap: 8 },
-  linkRow: { height: 42, borderRadius: 12, borderWidth: 1, borderColor: '#dbeafe', backgroundColor: '#f8fbff', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  linkText: { flex: 1, fontSize: 13, color: '#1e293b', fontWeight: '600' },
+  topicCard: {
+    marginTop: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  topicCardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  topicCardHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  topicIconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
+  topicCardLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  topicCardTitle: { marginTop: 2, fontSize: 18, lineHeight: 24, color: '#0f172a', fontWeight: '800' },
+  topicCardTag: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
+  topicSummary: { marginTop: 12, fontSize: 14, lineHeight: 21, color: '#334155' },
+  topicQuietMeta: { marginTop: 10, fontSize: 12, lineHeight: 18, color: '#94a3b8' },
+  topicCardFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  topicPrimaryBtn: { minWidth: 108, height: 40, borderRadius: 12, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  topicPrimaryText: { fontSize: 14, color: 'white', fontWeight: '800' },
+  topicTextBtn: { paddingHorizontal: 4, paddingVertical: 6 },
+  topicTextBtnText: { fontSize: 13, color: '#64748b', fontWeight: '700' },
+
+  sheetMask: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.24)' },
+  adjustSheet: {
+    backgroundColor: '#fffdf8',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 28,
+    minHeight: 420,
+    maxHeight: '78%',
+  },
+  sheetHandle: { alignSelf: 'center', width: 46, height: 5, borderRadius: 999, backgroundColor: '#e7e5e4' },
+  sheetTitle: { marginTop: 14, fontSize: 22, color: '#111827', fontWeight: '900' },
+  sheetDesc: { marginTop: 6, fontSize: 13, lineHeight: 19, color: '#64748b' },
+  sheetSummary: { marginTop: 14, borderRadius: 18, backgroundColor: '#fff7e8', borderWidth: 1, borderColor: '#f2ddaf', paddingHorizontal: 14, paddingVertical: 14 },
+  sheetSummaryTitle: { fontSize: 16, color: '#111827', fontWeight: '800' },
+  sheetSummaryText: { marginTop: 8, fontSize: 14, lineHeight: 21, color: '#4b5563' },
+  sheetList: { paddingTop: 10, paddingBottom: 6, gap: 10 },
+  sheetNoteCard: {
+    borderRadius: 18,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#ebe5d7',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sheetNoteCardSelected: { borderColor: '#111827', backgroundColor: '#fffdf7' },
+  checkWrap: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: '#d6d3d1', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  checkWrapSelected: { backgroundColor: '#111827', borderColor: '#111827' },
+  sheetNoteBody: { flex: 1 },
+  sheetNoteTitle: { fontSize: 14, lineHeight: 20, color: '#111827', fontWeight: '700' },
+  sheetNoteMeta: { marginTop: 4, fontSize: 12, color: '#94a3b8' },
+  sheetActionRow: { marginTop: 14, flexDirection: 'row', gap: 10 },
+  sheetGhostBtn: { flex: 1, height: 46, borderRadius: 14, backgroundColor: '#f4f4f5', alignItems: 'center', justifyContent: 'center' },
+  sheetGhostText: { fontSize: 14, color: '#374151', fontWeight: '700' },
+  sheetPrimaryBtn: { flex: 1.1, height: 46, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
+  sheetPrimaryText: { fontSize: 14, color: 'white', fontWeight: '800' },
 
   modalMask: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(15,23,42,0.44)' },
   quickSheet: {
@@ -623,10 +828,6 @@ const styles = StyleSheet.create({
   settingText: { fontSize: 14, color: '#94a3b8' },
   helperText: { marginTop: 8, fontSize: 12, color: '#94a3b8' },
 
-  swipeHint: { position: 'absolute', top: 18, right: 16, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  swipeHintNext: { backgroundColor: '#dbeafe' },
-  swipeHintRead: { backgroundColor: '#dcfce7' },
-  swipeHintText: { fontSize: 12, fontWeight: '700', color: '#0f172a' },
   feedbackPill: { position: 'absolute', bottom: 20, alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: '#111827' },
   feedbackText: { fontSize: 12, color: 'white', fontWeight: '600' },
 });
