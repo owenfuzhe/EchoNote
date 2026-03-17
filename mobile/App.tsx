@@ -18,6 +18,7 @@ import VoiceCapture from './src/components/VoiceCapture';
 import CaptureMenu from './src/components/CaptureMenu';
 import { fetchContent, isWechatUrl, isXiaohongshuUrl } from './src/services/contentFetcher';
 import { getDefaultBriefingNoteIds } from './src/services/briefing';
+import { getDefaultExploreTopic, getExploreTopicOptions } from './src/services/topic-workspace';
 import { useNoteStore } from './src/store/noteStore';
 import { AppView } from './src/types';
 
@@ -34,6 +35,8 @@ export default function App() {
   const [aiDraftInput, setAiDraftInput] = useState('');
   const [aiDraftVersion, setAiDraftVersion] = useState(0);
   const [briefingNoteIds, setBriefingNoteIds] = useState<string[]>([]);
+  const [exploreTopic, setExploreTopic] = useState('');
+  const [customExploreTopics, setCustomExploreTopics] = useState<string[]>([]);
 
   const { notes, fetchNotes, createNote } = useNoteStore();
 
@@ -53,6 +56,15 @@ export default function App() {
       return valid.length ? valid : getDefaultBriefingNoteIds(notes);
     });
   }, [notes]);
+
+  useEffect(() => {
+    if (!notes.length && !customExploreTopics.length) return;
+
+    const options = getExploreTopicOptions(notes, customExploreTopics);
+    const valid = new Set(options.map((option) => option.label));
+    const nextDefault = getDefaultExploreTopic(notes, customExploreTopics);
+    setExploreTopic((current) => (current && valid.has(current) ? current : nextDefault));
+  }, [notes, customExploreTopics]);
 
   const handleNavigate = (view: AppView, noteId?: string) => {
     if (noteId) setSelectedNoteId(noteId);
@@ -184,6 +196,27 @@ export default function App() {
     else if (skillId === 'tasks') setCurrentView('tasks');
   };
 
+  const handleSelectExploreTopic = (topic: string) => {
+    const next = topic.trim();
+    if (!next) return;
+    setExploreTopic(next);
+  };
+
+  const handleCreateExploreTopic = (topic: string) => {
+    const next = topic.trim();
+    if (!next) return;
+    setCustomExploreTopics((current) => (current.includes(next) ? current : [...current, next]));
+    setExploreTopic(next);
+  };
+
+  const handleOpenAIChallenge = (prompt: string) => {
+    const next = prompt.trim();
+    if (!next) return;
+    setAiDraftInput(next);
+    setAiDraftVersion((v) => v + 1);
+    setCurrentView('aiChat');
+  };
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.app} edges={['top', 'left', 'right']}>
@@ -194,13 +227,26 @@ export default function App() {
             onNavigate={handleNavigate}
             briefingNoteIds={briefingNoteIds}
             onUpdateBriefingNoteIds={setBriefingNoteIds}
+            exploreTopic={exploreTopic}
+            customExploreTopics={customExploreTopics}
+            onSelectExploreTopic={handleSelectExploreTopic}
+            onCreateExploreTopic={handleCreateExploreTopic}
           />
         )}
         {currentView === 'library' && <LibraryView onNavigate={handleNavigate} />}
         {currentView === 'document' && <DocumentView onNavigate={handleNavigate} noteId={selectedNoteId} />}
         {currentView === 'search' && <SearchView onNavigate={handleNavigate} onClose={() => setCurrentView('home')} />}
         {currentView === 'tasks' && <TasksView onNavigate={handleNavigate} />}
-        {currentView === 'explore' && <ExploreView onNavigate={handleNavigate} />}
+        {currentView === 'explore' && (
+          <ExploreView
+            onNavigate={handleNavigate}
+            currentTopic={exploreTopic}
+            customTopics={customExploreTopics}
+            onSelectTopic={handleSelectExploreTopic}
+            onCreateTopic={handleCreateExploreTopic}
+            onOpenAIChallenge={handleOpenAIChallenge}
+          />
+        )}
         {currentView === 'aiChat' && <AIChatView onNavigate={handleNavigate} initialInput={aiDraftInput} initialInputVersion={aiDraftVersion} />}
         {currentView === 'briefing' && <BriefingView onNavigate={handleNavigate} selectedNoteIds={briefingNoteIds} />}
 

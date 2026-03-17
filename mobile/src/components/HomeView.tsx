@@ -1,14 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BookOpen, Check, ChevronRight, Compass, FileText, Headphones, MessageSquare, Sparkles } from 'lucide-react-native';
+import { BookOpen, Check, ChevronRight, Compass, FileText, Headphones, Sparkles } from 'lucide-react-native';
 import { buildBriefing, getBriefingNotes } from '../services/briefing';
+import { buildTopicWorkspace, getExploreTopicOptions } from '../services/topic-workspace';
 import { useNoteStore } from '../store/noteStore';
 import { AppView, Note } from '../types';
+import TopicPickerSheet from './TopicPickerSheet';
 
 interface Props {
   onNavigate: (view: AppView, noteId?: string) => void;
   briefingNoteIds: string[];
   onUpdateBriefingNoteIds: (ids: string[]) => void;
+  exploreTopic: string;
+  customExploreTopics: string[];
+  onSelectExploreTopic: (topic: string) => void;
+  onCreateExploreTopic: (topic: string) => void;
 }
 
 const SWIPE_TRIGGER = 56;
@@ -16,12 +22,22 @@ const SWIPE_OUT = 460;
 const DEFAULT_BRIEFING_COUNT = 3;
 const MAX_BRIEFING_COUNT = 5;
 
-export default function HomeView({ onNavigate, briefingNoteIds, onUpdateBriefingNoteIds }: Props) {
+export default function HomeView({
+  onNavigate,
+  briefingNoteIds,
+  onUpdateBriefingNoteIds,
+  exploreTopic,
+  customExploreTopics,
+  onSelectExploreTopic,
+  onCreateExploreTopic,
+}: Props) {
   const { notes, updateNote } = useNoteStore();
   const recent = useMemo(() => notes.slice(0, 8), [notes]);
   const briefingPool = useMemo(() => notes.slice(0, 6), [notes]);
   const briefingNotes = useMemo(() => getBriefingNotes(briefingPool, briefingNoteIds), [briefingPool, briefingNoteIds]);
   const briefing = useMemo(() => buildBriefing(briefingNotes), [briefingNotes]);
+  const topicOptions = useMemo(() => getExploreTopicOptions(notes, customExploreTopics), [notes, customExploreTopics]);
+  const topicWorkspace = useMemo(() => buildTopicWorkspace(notes, exploreTopic, customExploreTopics), [notes, exploreTopic, customExploreTopics]);
 
   const [quickReadOpen, setQuickReadOpen] = useState(false);
   const [quickIndex, setQuickIndex] = useState(0);
@@ -29,6 +45,7 @@ export default function HomeView({ onNavigate, briefingNoteIds, onUpdateBriefing
   const [feedback, setFeedback] = useState('');
   const [quickBodyScrollEnabled, setQuickBodyScrollEnabled] = useState(true);
   const [briefingAdjustOpen, setBriefingAdjustOpen] = useState(false);
+  const [topicPickerOpen, setTopicPickerOpen] = useState(false);
 
   const translateX = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -317,19 +334,44 @@ export default function HomeView({ onNavigate, briefingNoteIds, onUpdateBriefing
           <Text style={styles.sTitle}>深度探索</Text>
         </View>
 
-        <View style={styles.blockCard}>
-          <View style={styles.blockHead}><Compass size={16} color="#2563eb" /><Text style={styles.blockTitle}>深度探索</Text></View>
-          <Text style={styles.blockDesc}>设置感兴趣 topic，持续追踪并进行 guided learning。</Text>
-          <View style={styles.actionColumn}>
-            <Pressable style={styles.linkRow} onPress={() => onNavigate('search')}>
-              <BookOpen size={15} color="#1d4ed8" />
-              <Text style={styles.linkText}>设置 Topic 追踪</Text>
-              <ChevronRight size={15} color="#94a3b8" />
+        <View style={styles.topicCard}>
+          <View style={styles.topicCardHead}>
+            <View style={styles.topicCardHeadLeft}>
+              <View style={styles.topicIconWrap}>
+                <Compass size={15} color="#2563eb" />
+              </View>
+              <View>
+                <Text style={styles.topicCardLabel}>追踪中的 Topic</Text>
+                <Text style={styles.topicCardTitle}>{topicWorkspace.topicLabel}</Text>
+              </View>
+            </View>
+            <View style={[styles.topicSourcePill, topicWorkspace.topicSource === 'custom' && styles.topicSourcePillCustom]}>
+              <Text style={[styles.topicSourceText, topicWorkspace.topicSource === 'custom' && styles.topicSourceTextCustom]}>
+                {topicWorkspace.topicSource === 'custom' ? '手动设置' : 'AI 识别'}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.topicSummary}>{topicWorkspace.summary}</Text>
+
+          <View style={styles.topicStatRow}>
+            <View style={styles.topicStatPill}>
+              <Text style={styles.topicStatText}>{`${Math.max(topicWorkspace.freshCount, topicWorkspace.noteCount ? 1 : 0)} 条今日进展`}</Text>
+            </View>
+            <View style={styles.topicStatPill}>
+              <Text style={styles.topicStatText}>{`${Math.max(topicWorkspace.relationCount, topicWorkspace.noteCount ? 1 : 0)} 个关联视角`}</Text>
+            </View>
+            <View style={styles.topicStatPill}>
+              <Text style={styles.topicStatText}>1 个 Spar 挑战</Text>
+            </View>
+          </View>
+
+          <View style={styles.topicCardFooter}>
+            <Pressable style={styles.topicPrimaryBtn} onPress={() => onNavigate('explore')}>
+              <Text style={styles.topicPrimaryText}>继续探索</Text>
             </Pressable>
-            <Pressable style={styles.linkRow} onPress={() => onNavigate('aiChat')}>
-              <MessageSquare size={15} color="#1d4ed8" />
-              <Text style={styles.linkText}>开始 Guided Learning</Text>
-              <ChevronRight size={15} color="#94a3b8" />
+            <Pressable style={styles.topicGhostBtn} onPress={() => setTopicPickerOpen(true)}>
+              <Text style={styles.topicGhostText}>调整 Topic</Text>
             </Pressable>
           </View>
         </View>
@@ -376,6 +418,17 @@ export default function HomeView({ onNavigate, briefingNoteIds, onUpdateBriefing
           </View>
         </View>
       </Modal>
+
+      <TopicPickerSheet
+        visible={topicPickerOpen}
+        title="调整深度探索 Topic"
+        description="选择一个你想持续追踪的问题空间。首页和探索页会围绕它生成进展、关联和思辨挑战。"
+        currentTopic={topicWorkspace.topicLabel}
+        topicOptions={topicOptions}
+        onSelectTopic={onSelectExploreTopic}
+        onCreateTopic={onCreateExploreTopic}
+        onClose={() => setTopicPickerOpen(false)}
+      />
 
       <Modal visible={quickReadOpen} transparent animationType="fade" onRequestClose={() => setQuickReadOpen(false)}>
         <View style={styles.modalMask}>
@@ -523,13 +576,33 @@ const styles = StyleSheet.create({
   proTeaser: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10 },
   proTeaserText: { fontSize: 12, color: '#7c2d12', fontWeight: '700' },
 
-  blockCard: { marginTop: 12, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', padding: 14 },
-  blockHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  blockTitle: { fontSize: 17, fontWeight: '800', color: '#111827' },
-  blockDesc: { marginTop: 8, fontSize: 13, color: '#64748b', lineHeight: 19 },
-  actionColumn: { marginTop: 10, gap: 8 },
-  linkRow: { height: 42, borderRadius: 12, borderWidth: 1, borderColor: '#dbeafe', backgroundColor: '#f8fbff', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  linkText: { flex: 1, fontSize: 13, color: '#1e293b', fontWeight: '600' },
+  topicCard: {
+    marginTop: 12,
+    backgroundColor: '#f8fbff',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  topicCardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  topicCardHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  topicIconWrap: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
+  topicCardLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  topicCardTitle: { marginTop: 2, fontSize: 20, lineHeight: 26, color: '#0f172a', fontWeight: '900' },
+  topicSourcePill: { borderRadius: 999, backgroundColor: '#e0f2fe', paddingHorizontal: 9, paddingVertical: 5 },
+  topicSourcePillCustom: { backgroundColor: '#ede9fe' },
+  topicSourceText: { fontSize: 11, color: '#0c4a6e', fontWeight: '800' },
+  topicSourceTextCustom: { color: '#6d28d9' },
+  topicSummary: { marginTop: 12, fontSize: 14, lineHeight: 22, color: '#334155', fontWeight: '600' },
+  topicStatRow: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  topicStatPill: { borderRadius: 999, backgroundColor: 'white', paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: '#dbeafe' },
+  topicStatText: { fontSize: 12, color: '#1e3a8a', fontWeight: '700' },
+  topicCardFooter: { marginTop: 14, flexDirection: 'row', gap: 10 },
+  topicPrimaryBtn: { flex: 1, height: 42, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
+  topicPrimaryText: { fontSize: 14, color: 'white', fontWeight: '800' },
+  topicGhostBtn: { flex: 1, height: 42, borderRadius: 14, backgroundColor: 'white', borderWidth: 1, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
+  topicGhostText: { fontSize: 14, color: '#334155', fontWeight: '700' },
 
   sheetMask: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.24)' },
   adjustSheet: {
