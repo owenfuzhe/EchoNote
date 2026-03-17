@@ -3,7 +3,9 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { Archive, ChevronDown, Clock, Filter, Search, Settings } from 'lucide-react-native';
 import StateBlock from './StateBlock';
 import { useNoteStore } from '../store/noteStore';
+import { mobileType } from '../theme/typography';
 import { AppView } from '../types';
+import { richTextToPlainText } from '../utils/richText';
 
 interface Props { onNavigate: (view: AppView, noteId?: string) => void }
 
@@ -31,7 +33,7 @@ export default function LibraryView({ onNavigate }: Props) {
     const list = notes.filter((note) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        if (!note.title?.toLowerCase().includes(q) && !note.content?.toLowerCase().includes(q)) return false;
+        if (!note.title?.toLowerCase().includes(q) && !richTextToPlainText(note.content || '').toLowerCase().includes(q)) return false;
       }
       if (selectedType !== 'all') {
         const typeMap: Record<string, string[]> = { article: ['text'], web: ['link'], snippet: ['text'], note: ['text'], image: ['image'], audio: ['voice'] };
@@ -117,7 +119,7 @@ export default function LibraryView({ onNavigate }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f8fafc', paddingTop: 14, paddingHorizontal: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  h1: { fontSize: 20, fontWeight: '700', color: '#111827' },
+  h1: { ...mobileType.screenTitle },
   searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'white', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
   search: { flex: 1, fontSize: 16, color: '#111827' },
   filterScroll: { flexGrow: 0, maxHeight: 46, marginBottom: 4 },
@@ -126,7 +128,7 @@ const styles = StyleSheet.create({
   filterText: { fontSize: 13, color: '#374151' },
   note: { flexDirection: 'row', gap: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingVertical: 14 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#3b82f6', marginTop: 8 },
-  title: { fontSize: 15, fontWeight: '600', color: '#111827' },
+  title: { ...mobileType.cardTitle },
   meta: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
   empty: { textAlign: 'center', color: '#6b7280', marginTop: 40 },
   mask: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' },
@@ -134,7 +136,7 @@ const styles = StyleSheet.create({
   sheetHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   cancel: { color: '#6b7280' },
   done: { backgroundColor: '#3b82f6', color: 'white', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  sheetTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  sheetTitle: { ...mobileType.sectionTitle, fontSize: 17, lineHeight: 22 },
   typeBtn: { padding: 12, backgroundColor: '#f9fafb', borderRadius: 10, marginBottom: 8 },
   tagTitle: { marginTop: 12, marginBottom: 8, color: '#6b7280', fontWeight: '600' },
   tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

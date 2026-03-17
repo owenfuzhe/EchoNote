@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookOpen, Home, Infinity, Lightbulb, Plus, Search } from 'lucide-react-native';
 import SkillsDial from './SkillsDial';
+import { mobileType } from '../theme/typography';
 import { AppView } from '../types';
 
 interface BottomNavProps {
@@ -102,9 +103,9 @@ const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between' },
   leftPill: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.98)', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 6, borderWidth: 1, borderColor: '#e5e7eb', flex: 1, marginRight: 10, justifyContent: 'space-between' },
   rightPill: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.98)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#e5e7eb' },
-  navBtn: { width: 58, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  navBtn: { width: 60, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   navBtnActive: { backgroundColor: '#eff6ff' },
-  navLabel: { marginTop: 2, fontSize: 10, color: '#6b7280', fontWeight: '500' },
+  navLabel: { ...mobileType.navLabel, marginTop: 3 },
   navLabelActive: { color: '#2563eb' },
   aiBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#7c3aed' },
   addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f3f4f6' },

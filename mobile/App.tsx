@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
@@ -16,15 +17,15 @@ import BottomNav from './src/components/BottomNav';
 import VoiceCapture from './src/components/VoiceCapture';
 import CaptureMenu from './src/components/CaptureMenu';
 import { fetchContent, isWechatUrl, isXiaohongshuUrl } from './src/services/contentFetcher';
+import { BACKEND_KEY, DEFAULT_BACKEND } from './src/services/backend-config';
+import { bindSupabaseAuthLifecycle, ensureSupabaseUser, isSupabaseConfigured, supabase } from './src/services/supabase';
 import { useNoteStore } from './src/store/noteStore';
-import { AppView } from './src/types';
-
-const BACKEND_KEY = 'echonote_mobile_backend';
-const DEFAULT_BACKEND = 'http://192.168.50.197:8000';
+import { AppView, Note } from './src/types';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [draftNote, setDraftNote] = useState<Partial<Note> | null>(null);
   const [isVoiceCaptureOpen, setIsVoiceCaptureOpen] = useState(false);
   const [isCaptureMenuOpen, setIsCaptureMenuOpen] = useState(false);
   const [isCaptureLoading, setIsCaptureLoading] = useState(false);
@@ -35,16 +36,59 @@ export default function App() {
   const { fetchNotes, createNote } = useNoteStore();
 
   useEffect(() => {
-    fetchNotes();
     (async () => {
       const saved = await AsyncStorage.getItem(BACKEND_KEY);
       if (saved) setBackendUrl(saved);
+
+      try {
+        if (isSupabaseConfigured) {
+          await ensureSupabaseUser();
+        }
+      } catch (e: any) {
+        console.warn('Supabase bootstrap failed:', e?.message || e);
+      }
+
+      await fetchNotes();
     })();
   }, [fetchNotes]);
 
+  useEffect(() => {
+    const unbindLifecycle = bindSupabaseAuthLifecycle();
+    if (!supabase) return unbindLifecycle;
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      void fetchNotes();
+    });
+
+    return () => {
+      unbindLifecycle();
+      subscription.unsubscribe();
+    };
+  }, [fetchNotes]);
+
   const handleNavigate = (view: AppView, noteId?: string) => {
-    if (noteId) setSelectedNoteId(noteId);
+    if (noteId) {
+      setSelectedNoteId(noteId);
+      setDraftNote(null);
+    } else if (view !== 'document') {
+      setSelectedNoteId(null);
+      setDraftNote(null);
+    }
     setCurrentView(view);
+  };
+
+  const handleCreateBlankNote = () => {
+    setIsCaptureMenuOpen(false);
+    setSelectedNoteId(null);
+    setDraftNote({ title: '', content: '', type: 'text', tags: [] });
+    setCurrentView('document');
+  };
+
+  const handlePersistDraft = (noteId: string) => {
+    setSelectedNoteId(noteId);
+    setDraftNote(null);
   };
 
   const handleVoiceGenerateNote = async (text: string) => {
@@ -173,46 +217,51 @@ export default function App() {
   };
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.app} edges={['top', 'left', 'right']}>
-        <StatusBar barStyle="dark-content" />
+    <GestureHandlerRootView style={styles.app}>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.app} edges={['top', 'left', 'right']}>
+          <StatusBar barStyle="dark-content" />
 
-        {currentView === 'home' && <HomeView onNavigate={handleNavigate} />}
-        {currentView === 'library' && <LibraryView onNavigate={handleNavigate} />}
-        {currentView === 'document' && <DocumentView onNavigate={handleNavigate} noteId={selectedNoteId} />}
-        {currentView === 'search' && <SearchView onNavigate={handleNavigate} onClose={() => setCurrentView('home')} />}
-        {currentView === 'tasks' && <TasksView onNavigate={handleNavigate} />}
-        {currentView === 'explore' && <ExploreView onNavigate={handleNavigate} />}
-        {currentView === 'aiChat' && <AIChatView onNavigate={handleNavigate} initialInput={aiDraftInput} initialInputVersion={aiDraftVersion} />}
+          {currentView === 'home' && <HomeView onNavigate={handleNavigate} />}
+          {currentView === 'library' && <LibraryView onNavigate={handleNavigate} />}
+          {currentView === 'document' && <DocumentView onNavigate={handleNavigate} noteId={selectedNoteId} draftNote={draftNote} onPersistDraft={handlePersistDraft} />}
+          {currentView === 'search' && <SearchView onNavigate={handleNavigate} onClose={() => setCurrentView('home')} />}
+          {currentView === 'tasks' && <TasksView onNavigate={handleNavigate} />}
+          {currentView === 'explore' && <ExploreView onNavigate={handleNavigate} />}
+          {currentView === 'aiChat' && <AIChatView onNavigate={handleNavigate} initialInput={aiDraftInput} initialInputVersion={aiDraftVersion} />}
 
-        <BottomNav
-          currentView={currentView}
-          onNavigate={setCurrentView}
-          onCaptureMenu={() => setIsCaptureMenuOpen(true)}
-          onSearch={() => setCurrentView('search')}
-          onSelectSkill={handleSelectSkill}
-          onAIVoiceCapture={() => setIsVoiceCaptureOpen(true)}
-        />
+          {currentView !== 'document' && (
+            <BottomNav
+              currentView={currentView}
+              onNavigate={setCurrentView}
+              onCaptureMenu={() => setIsCaptureMenuOpen(true)}
+              onSearch={() => setCurrentView('search')}
+              onSelectSkill={handleSelectSkill}
+              onAIVoiceCapture={() => setIsVoiceCaptureOpen(true)}
+            />
+          )}
 
-        <VoiceCapture
-          isOpen={isVoiceCaptureOpen}
-          onClose={() => setIsVoiceCaptureOpen(false)}
-          onGenerateNote={handleVoiceGenerateNote}
-          onAskAI={handleVoiceAskAI}
-        />
+          <VoiceCapture
+            isOpen={isVoiceCaptureOpen}
+            onClose={() => setIsVoiceCaptureOpen(false)}
+            onGenerateNote={handleVoiceGenerateNote}
+            onAskAI={handleVoiceAskAI}
+          />
 
-        <CaptureMenu
-          isOpen={isCaptureMenuOpen}
-          onClose={() => setIsCaptureMenuOpen(false)}
-          onFileCapture={handleFileCapture}
-          onImageCapture={handleImageCapture}
-          onLinkCapture={handleLinkSubmit}
-          onYoutubeCapture={handleYoutubeCapture}
-          onTextCapture={handleTextCapture}
-          isLoading={isCaptureLoading}
-        />
-      </SafeAreaView>
-    </SafeAreaProvider>
+          <CaptureMenu
+            isOpen={isCaptureMenuOpen}
+            onClose={() => setIsCaptureMenuOpen(false)}
+            onCreateBlankNote={handleCreateBlankNote}
+            onFileCapture={handleFileCapture}
+            onImageCapture={handleImageCapture}
+            onLinkCapture={handleLinkSubmit}
+            onYoutubeCapture={handleYoutubeCapture}
+            onTextCapture={handleTextCapture}
+            isLoading={isCaptureLoading}
+          />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

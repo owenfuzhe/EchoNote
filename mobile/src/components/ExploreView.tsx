@@ -7,7 +7,9 @@ import StateBlock from './StateBlock';
 import { searchWeb } from '../services/search';
 import { getTemplateContent, recommendTemplates, recordTemplateUsage } from '../services/template-recommender';
 import { useNoteStore } from '../store/noteStore';
+import { mobileType } from '../theme/typography';
 import { AppView, Note } from '../types';
+import { richTextToPlainText, richTextToPreview } from '../utils/richText';
 
 interface Props {
   onNavigate: (view: AppView, noteId?: string) => void;
@@ -104,7 +106,7 @@ export default function ExploreView({ onNavigate }: Props) {
     setSelectedNote(note);
     const existed = await getPodcastByNoteId(note.id);
     if (existed) {
-      const p = new PodcastTTSPlayer(note.content, existed.duration, existed.voice);
+      const p = new PodcastTTSPlayer(richTextToPlainText(note.content), existed.duration, existed.voice);
       p.setCallbacks({
         onStateChange: (state) => setPlaying(state === 'playing'),
         onTimeUpdate: (time, dur) => {
@@ -132,11 +134,12 @@ export default function ExploreView({ onNavigate }: Props) {
     setProgress(0);
     setProgressText('准备生成...');
     try {
-      const meta = await generatePodcastMock(selectedNote.id, selectedNote.title, selectedNote.content, selectedVoice, (p, s) => {
+      const plainContent = richTextToPlainText(selectedNote.content);
+      const meta = await generatePodcastMock(selectedNote.id, selectedNote.title, plainContent, selectedVoice, (p, s) => {
         setProgress(p);
         setProgressText(s);
       });
-      const p = new PodcastTTSPlayer(selectedNote.content, meta.duration, selectedVoice);
+      const p = new PodcastTTSPlayer(plainContent, meta.duration, selectedVoice);
       p.setCallbacks({
         onStateChange: (state) => setPlaying(state === 'playing'),
         onTimeUpdate: (time, dur) => {
@@ -240,7 +243,7 @@ export default function ExploreView({ onNavigate }: Props) {
                   {notes.slice(0, 10).map((note) => (
                     <Pressable key={note.id} style={styles.noteItem} onPress={() => selectNoteForPodcast(note)}>
                       <Text numberOfLines={1} style={styles.noteTitle}>{note.title || '无标题'}</Text>
-                      <Text numberOfLines={2} style={styles.noteSub}>{note.content.replace(/#{1,6}\s/g, '').slice(0, 80)}</Text>
+                      <Text numberOfLines={2} style={styles.noteSub}>{richTextToPreview(note.content, 80)}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -362,17 +365,17 @@ export default function ExploreView({ onNavigate }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f8fafc', paddingTop: 14, paddingHorizontal: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  h1: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  secTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  h1: { ...mobileType.screenTitle },
+  secTitle: { ...mobileType.sectionTitle },
   grid: { marginTop: 10, flexDirection: 'row', gap: 8 },
   skillCard: { flex: 1, backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#e5e7eb', padding: 10 },
   skillDisabled: { opacity: 0.55 },
   skillDot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  skillName: { marginTop: 8, fontWeight: '700', color: '#111827' },
+  skillName: { ...mobileType.cardTitle, marginTop: 8 },
   skillDesc: { marginTop: 4, fontSize: 12, color: '#6b7280', minHeight: 32 },
   coming: { marginTop: 6, alignSelf: 'flex-start', fontSize: 11, color: '#9ca3af', backgroundColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
   panel: { marginTop: 12, backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#e5e7eb', padding: 12, gap: 10 },
-  panelTitle: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  panelTitle: { ...mobileType.cardTitle, fontSize: 15, lineHeight: 20 },
   searchInput: { backgroundColor: '#f3f4f6', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10, color: '#111827' },
   searchBtn: { height: 40, borderRadius: 10, backgroundColor: '#2563eb', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   searchBtnDisabled: { backgroundColor: '#93c5fd' },

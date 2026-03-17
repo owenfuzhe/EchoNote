@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { MOCK_NOTES_200 } from '../services/mock-data';
+import { createNoteRemote, deleteNoteRemote, listNotesRemote, updateNoteRemote } from '../services/supabase-notes';
 import { Note } from '../types';
+import { richTextToPlainText } from '../utils/richText';
 
 interface NoteState {
   notes: Note[];
@@ -18,6 +20,16 @@ interface NoteState {
 
 const STORAGE_KEY = 'crispynote_notes_mobile';
 const genId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const sortNotes = (notes: Note[]) => [...notes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+async function readLocalNotes() {
+  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  return raw ? (JSON.parse(raw) as Note[]) : [];
+}
+
+async function writeLocalNotes(notes: Note[]) {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+}
 
 export const useNoteStore = create<NoteState>((set, get) => ({
   notes: [],
@@ -27,14 +39,30 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   fetchNotes: async () => {
     set({ isLoading: true, error: null });
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      let notes: Note[] = raw ? JSON.parse(raw) : [];
-      if (notes.length === 0) {
-        notes = MOCK_NOTES_200;
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+      try {
+        const remoteNotes = sortNotes(await listNotesRemote());
+        await writeLocalNotes(remoteNotes);
+        set({ notes: remoteNotes, isLoading: false, error: null });
+        return;
+      } catch (remoteError: any) {
+        const localNotes = await readLocalNotes();
+        if (localNotes.length > 0) {
+          set({
+            notes: sortNotes(localNotes),
+            isLoading: false,
+            error: `云端笔记暂不可用，已切换到本地缓存：${remoteError?.message || 'unknown error'}`,
+          });
+          return;
+        }
       }
-      notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      set({ notes, isLoading: false });
+
+      const notes = sortNotes(MOCK_NOTES_200);
+      await writeLocalNotes(notes);
+      set({
+        notes,
+        isLoading: false,
+        error: '当前使用本地演示数据。Supabase 登录与云同步接通后，这里会自动切到真实云端数据。',
+      });
     } catch (e: any) {
       set({ isLoading: false, error: e?.message || 'load failed' });
     }
@@ -55,22 +83,46 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       createdAt: now,
       updatedAt: now,
     };
-    const updated = [note, ...get().notes];
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    set({ notes: updated });
-    return note.id;
+
+    try {
+      const remoteNote = await createNoteRemote(note);
+      const updated = sortNotes([remoteNote, ...get().notes.filter((n) => n.id !== remoteNote.id)]);
+      await writeLocalNotes(updated);
+      set({ notes: updated, error: null });
+      return remoteNote.id;
+    } catch (e: any) {
+      const updated = sortNotes([note, ...get().notes]);
+      await writeLocalNotes(updated);
+      set({ notes: updated, error: `笔记已保存在本地缓存，云端同步失败：${e?.message || 'unknown error'}` });
+      return note.id;
+    }
   },
 
   updateNote: async (id, updates) => {
-    const updated = get().notes.map((n) => (n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n));
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    set({ notes: updated });
+    const localNext = sortNotes(get().notes.map((n) => (n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n)));
+
+    try {
+      const remoteNote = await updateNoteRemote(id, updates);
+      const updated = sortNotes(localNext.map((n) => (n.id === id ? remoteNote : n)));
+      await writeLocalNotes(updated);
+      set({ notes: updated, error: null });
+    } catch (e: any) {
+      await writeLocalNotes(localNext);
+      set({ notes: localNext, error: `更新已保存在本地缓存，云端同步失败：${e?.message || 'unknown error'}` });
+    }
   },
 
   deleteNote: async (id) => {
-    const updated = get().notes.filter((n) => n.id !== id);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    set({ notes: updated });
+    try {
+      await deleteNoteRemote(id);
+      const updated = get().notes.filter((n) => n.id !== id);
+      await writeLocalNotes(updated);
+      set({ notes: updated, error: null });
+    } catch (e: any) {
+      const updated = get().notes.filter((n) => n.id !== id);
+      await writeLocalNotes(updated);
+      set({ notes: updated, error: `删除已在本地生效，云端同步失败：${e?.message || 'unknown error'}` });
+    }
   },
 
   getNoteById: (id) => get().notes.find((n) => n.id === id),
@@ -84,7 +136,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   searchNotes: (query) => {
     const q = query.toLowerCase();
     return get().notes.filter(
-      (n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q) || n.tags?.some((t) => t.toLowerCase().includes(q))
+      (n) =>
+        n.title.toLowerCase().includes(q) ||
+        richTextToPlainText(n.content).toLowerCase().includes(q) ||
+        n.tags?.some((t) => t.toLowerCase().includes(q))
     );
   },
 }));

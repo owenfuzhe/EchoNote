@@ -1,4 +1,5 @@
 import { Note } from '../types';
+import { richTextToPlainText } from '../utils/richText';
 
 export interface NoteRelation {
   sourceNoteId: string;
@@ -35,8 +36,8 @@ export function getLocalNoteRelations(notes: Note[], sourceNoteId: string, maxRe
     const targetTags = new Set(target.tags || []);
     const commonTags = [...sourceTags].filter((tag) => targetTags.has(tag));
 
-    const sourceKeywords = extractKeywords(source.content);
-    const targetKeywords = extractKeywords(target.content);
+    const sourceKeywords = extractKeywords(richTextToPlainText(source.content));
+    const targetKeywords = extractKeywords(richTextToPlainText(target.content));
     const commonKeywords = sourceKeywords.filter((kw) => targetKeywords.includes(kw));
 
     const similarity = Math.min(100, commonTags.length * 20 + commonKeywords.length * 5);

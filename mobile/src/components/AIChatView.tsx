@@ -3,7 +3,9 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { ChevronLeft, Loader, Send, Sparkles } from 'lucide-react-native';
 import { chat } from '../services/bailian-chat';
 import { useNoteStore } from '../store/noteStore';
+import { mobileType } from '../theme/typography';
 import { AppView, ChatMessage } from '../types';
+import { richTextToPreview } from '../utils/richText';
 
 interface Props {
   onNavigate: (view: AppView, noteId?: string) => void;
@@ -31,7 +33,7 @@ export default function AIChatView({ onNavigate, initialInput, initialInputVersi
     const recent = notes.slice(0, 5);
     if (!recent.length) return '暂无笔记内容，请先创建笔记。';
     return recent
-      .map((n, idx) => `${idx + 1}. ${n.title}\n${n.content.slice(0, 280)}`)
+      .map((n, idx) => `${idx + 1}. ${n.title}\n${richTextToPreview(n.content, 280)}`)
       .join('\n\n');
   }, [notes]);
 
@@ -117,15 +119,15 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f8fafc' },
   header: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingHorizontal: 16, paddingBottom: 10 },
   backBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
-  title: { fontSize: 19, fontWeight: '700', color: '#111827' },
-  sub: { marginTop: 2, fontSize: 12, color: '#6b7280' },
+  title: { ...mobileType.screenTitleCompact },
+  sub: { ...mobileType.screenMeta, marginTop: 2 },
   welcome: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   logo: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
-  welcomeTitle: { marginTop: 12, fontSize: 18, fontWeight: '700', color: '#111827' },
+  welcomeTitle: { ...mobileType.sectionTitle, marginTop: 12 },
   welcomeSub: { marginTop: 6, fontSize: 13, color: '#6b7280' },
   quickWrap: { marginTop: 14, width: '100%', gap: 8 },
   quickBtn: { backgroundColor: 'white', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  quickText: { color: '#374151', fontWeight: '600' },
+  quickText: { ...mobileType.cardTitle, color: '#374151', fontSize: 15, lineHeight: 20 },
   list: { flex: 1, paddingHorizontal: 14, paddingTop: 8 },
   bubble: { maxWidth: '86%', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 },
   userBubble: { alignSelf: 'flex-end', backgroundColor: '#3b82f6' },
