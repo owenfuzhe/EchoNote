@@ -22,7 +22,7 @@ export interface Note {
   emoji?: string;
 }
 
-export type AppView = 'home' | 'library' | 'document' | 'search' | 'tasks' | 'explore' | 'aiChat';
+export type AppView = 'home' | 'library' | 'document' | 'search' | 'tasks' | 'explore' | 'aiChat' | 'briefing';
 
 export type DocumentTab = 'article' | 'source' | 'snapshot';
 

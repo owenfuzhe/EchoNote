@@ -1,23 +1,34 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BookOpen, ChevronRight, Compass, FileText, Headphones, MessageSquare } from 'lucide-react-native';
+import { BookOpen, Check, ChevronRight, Compass, FileText, Headphones, MessageSquare, Sparkles } from 'lucide-react-native';
+import { buildBriefing, getBriefingNotes } from '../services/briefing';
 import { useNoteStore } from '../store/noteStore';
 import { AppView, Note } from '../types';
 
-interface Props { onNavigate: (view: AppView, noteId?: string) => void }
+interface Props {
+  onNavigate: (view: AppView, noteId?: string) => void;
+  briefingNoteIds: string[];
+  onUpdateBriefingNoteIds: (ids: string[]) => void;
+}
 
 const SWIPE_TRIGGER = 56;
 const SWIPE_OUT = 460;
+const DEFAULT_BRIEFING_COUNT = 3;
+const MAX_BRIEFING_COUNT = 5;
 
-export default function HomeView({ onNavigate }: Props) {
+export default function HomeView({ onNavigate, briefingNoteIds, onUpdateBriefingNoteIds }: Props) {
   const { notes, updateNote } = useNoteStore();
   const recent = useMemo(() => notes.slice(0, 8), [notes]);
+  const briefingPool = useMemo(() => notes.slice(0, 6), [notes]);
+  const briefingNotes = useMemo(() => getBriefingNotes(briefingPool, briefingNoteIds), [briefingPool, briefingNoteIds]);
+  const briefing = useMemo(() => buildBriefing(briefingNotes), [briefingNotes]);
 
   const [quickReadOpen, setQuickReadOpen] = useState(false);
   const [quickIndex, setQuickIndex] = useState(0);
   const [, setSwipeHint] = useState<'next' | 'read' | null>(null);
   const [feedback, setFeedback] = useState('');
   const [quickBodyScrollEnabled, setQuickBodyScrollEnabled] = useState(true);
+  const [briefingAdjustOpen, setBriefingAdjustOpen] = useState(false);
 
   const translateX = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -177,6 +188,25 @@ export default function HomeView({ onNavigate }: Props) {
     transitionToNext('已标记为已读', -1);
   };
 
+  const toggleBriefingNote = (noteId: string) => {
+    const selectedSet = new Set(briefingNoteIds);
+
+    if (selectedSet.has(noteId)) {
+      if (selectedSet.size <= 1) return;
+      selectedSet.delete(noteId);
+      onUpdateBriefingNoteIds(Array.from(selectedSet));
+      return;
+    }
+
+    if (selectedSet.size >= MAX_BRIEFING_COUNT) return;
+    selectedSet.add(noteId);
+    onUpdateBriefingNoteIds(Array.from(selectedSet));
+  };
+
+  const resetBriefingNotes = () => {
+    onUpdateBriefingNoteIds(briefingPool.slice(0, DEFAULT_BRIEFING_COUNT).map((note) => note.id));
+  };
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -244,18 +274,42 @@ export default function HomeView({ onNavigate }: Props) {
           <Text style={styles.sTitle}>快速消化</Text>
         </View>
 
-        <View style={styles.blockCard}>
-          <View style={styles.blockHead}><Headphones size={16} color="#4f46e5" /><Text style={styles.blockTitle}>快速消化</Text></View>
-          <Text style={styles.blockDesc}>把最近导入内容快速变成可听可读的结构化信息。</Text>
-          <View style={styles.actionRow}>
-            <Pressable style={styles.primaryAction} onPress={() => onNavigate('explore')}>
-              <Headphones size={14} color="white" />
-              <Text style={styles.primaryActionText}>AI 播客</Text>
+        <View style={styles.capsuleCard}>
+          <View style={styles.capsuleHead}>
+            <View style={styles.capsuleHeadLeft}>
+              <View style={styles.capsuleIconWrap}>
+                <Sparkles size={15} color="#111827" />
+              </View>
+              <Text style={styles.capsuleTitle}>快速消化</Text>
+            </View>
+            <Text style={styles.capsuleMeta}>{briefing.coverageLabel}</Text>
+          </View>
+
+          <Pressable style={styles.capsuleCopyArea} onPress={() => setBriefingAdjustOpen(true)}>
+            <Text style={styles.capsuleCopy}>{briefing.capsuleText}</Text>
+            <View style={styles.capsuleAdjustRow}>
+              <Text style={styles.capsuleAdjustText}>点击文案调整本期收录内容</Text>
+              <ChevronRight size={15} color="#64748b" />
+            </View>
+          </Pressable>
+
+          <View style={styles.capsuleChipRow}>
+            {briefing.notes.map((note) => (
+              <View key={note.id} style={styles.noteChip}>
+                <Text numberOfLines={1} style={styles.noteChipText}>{note.title}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.capsuleFooter}>
+            <Pressable style={styles.readBriefingBtn} onPress={() => onNavigate('briefing')}>
+              <BookOpen size={14} color="white" />
+              <Text style={styles.readBriefingText}>阅读简报</Text>
             </Pressable>
-            <Pressable style={styles.secondaryAction} onPress={() => onNavigate('aiChat')}>
-              <FileText size={14} color="#334155" />
-              <Text style={styles.secondaryActionText}>简报</Text>
-            </Pressable>
+            <View style={styles.proTeaser}>
+              <Headphones size={12} color="#7c2d12" />
+              <Text style={styles.proTeaserText}>播客版为 Pro 预留</Text>
+            </View>
           </View>
         </View>
 
@@ -280,6 +334,48 @@ export default function HomeView({ onNavigate }: Props) {
           </View>
         </View>
       </ScrollView>
+
+      <Modal visible={briefingAdjustOpen} transparent animationType="slide" onRequestClose={() => setBriefingAdjustOpen(false)}>
+        <View style={styles.sheetMask}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setBriefingAdjustOpen(false)} />
+          <View style={styles.adjustSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>调整本期简报内容</Text>
+            <Text style={styles.sheetDesc}>建议保留 3 到 5 篇。点击文稿卡片即可增减收录内容。</Text>
+
+            <View style={styles.sheetSummary}>
+              <Text style={styles.sheetSummaryTitle}>{briefing.title}</Text>
+              <Text style={styles.sheetSummaryText}>{briefing.oneLiner}</Text>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetList}>
+              {briefingPool.map((note) => {
+                const selected = briefingNoteIds.includes(note.id);
+                return (
+                  <Pressable key={note.id} style={[styles.sheetNoteCard, selected && styles.sheetNoteCardSelected]} onPress={() => toggleBriefingNote(note.id)}>
+                    <View style={[styles.checkWrap, selected && styles.checkWrapSelected]}>
+                      {selected ? <Check size={14} color="white" /> : null}
+                    </View>
+                    <View style={styles.sheetNoteBody}>
+                      <Text numberOfLines={2} style={styles.sheetNoteTitle}>{note.title}</Text>
+                      <Text style={styles.sheetNoteMeta}>{`${extractSite(note)} · ${format(note.updatedAt)}`}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.sheetActionRow}>
+              <Pressable style={styles.sheetGhostBtn} onPress={resetBriefingNotes}>
+                <Text style={styles.sheetGhostText}>恢复默认 3 篇</Text>
+              </Pressable>
+              <Pressable style={styles.sheetPrimaryBtn} onPress={() => setBriefingAdjustOpen(false)}>
+                <Text style={styles.sheetPrimaryText}>{`完成（${briefing.notes.length} 篇）`}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={quickReadOpen} transparent animationType="fade" onRequestClose={() => setQuickReadOpen(false)}>
         <View style={styles.modalMask}>
@@ -395,18 +491,86 @@ const styles = StyleSheet.create({
   noteSite: { marginTop: 2, fontSize: 12, color: '#6b7280' },
   noteTime: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
 
+  capsuleCard: {
+    marginTop: 12,
+    backgroundColor: '#fffef9',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#e8dfce',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2,
+  },
+  capsuleHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  capsuleHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  capsuleIconWrap: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f7ead1', alignItems: 'center', justifyContent: 'center' },
+  capsuleTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
+  capsuleMeta: { fontSize: 12, color: '#92400e', backgroundColor: '#fff3d6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden', fontWeight: '700' },
+  capsuleCopyArea: { marginTop: 12, borderRadius: 18, backgroundColor: '#fffcf3', borderWidth: 1, borderColor: '#efe4c9', paddingHorizontal: 14, paddingVertical: 14 },
+  capsuleCopy: { fontSize: 15, lineHeight: 24, color: '#1f2937', fontWeight: '600' },
+  capsuleAdjustRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  capsuleAdjustText: { fontSize: 12, color: '#64748b', fontWeight: '600' },
+  capsuleChipRow: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  noteChip: { borderRadius: 999, backgroundColor: '#f3f4f6', paddingHorizontal: 10, paddingVertical: 7, maxWidth: '100%' },
+  noteChipText: { fontSize: 12, color: '#374151', fontWeight: '600' },
+  capsuleFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  readBriefingBtn: { height: 38, borderRadius: 12, backgroundColor: '#111827', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  readBriefingText: { fontSize: 13, color: 'white', fontWeight: '800' },
+  proTeaser: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10 },
+  proTeaserText: { fontSize: 12, color: '#7c2d12', fontWeight: '700' },
+
   blockCard: { marginTop: 12, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', padding: 14 },
   blockHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   blockTitle: { fontSize: 17, fontWeight: '800', color: '#111827' },
   blockDesc: { marginTop: 8, fontSize: 13, color: '#64748b', lineHeight: 19 },
-  actionRow: { marginTop: 12, flexDirection: 'row', gap: 8 },
-  primaryAction: { flex: 1, height: 38, borderRadius: 12, backgroundColor: '#4f46e5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  primaryActionText: { fontSize: 13, color: 'white', fontWeight: '700' },
-  secondaryAction: { flex: 1, height: 38, borderRadius: 12, backgroundColor: '#eef2ff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  secondaryActionText: { fontSize: 13, color: '#334155', fontWeight: '700' },
   actionColumn: { marginTop: 10, gap: 8 },
   linkRow: { height: 42, borderRadius: 12, borderWidth: 1, borderColor: '#dbeafe', backgroundColor: '#f8fbff', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   linkText: { flex: 1, fontSize: 13, color: '#1e293b', fontWeight: '600' },
+
+  sheetMask: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.24)' },
+  adjustSheet: {
+    backgroundColor: '#fffdf8',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 28,
+    minHeight: 420,
+    maxHeight: '78%',
+  },
+  sheetHandle: { alignSelf: 'center', width: 46, height: 5, borderRadius: 999, backgroundColor: '#e7e5e4' },
+  sheetTitle: { marginTop: 14, fontSize: 22, color: '#111827', fontWeight: '900' },
+  sheetDesc: { marginTop: 6, fontSize: 13, lineHeight: 19, color: '#64748b' },
+  sheetSummary: { marginTop: 14, borderRadius: 18, backgroundColor: '#fff7e8', borderWidth: 1, borderColor: '#f2ddaf', paddingHorizontal: 14, paddingVertical: 14 },
+  sheetSummaryTitle: { fontSize: 16, color: '#111827', fontWeight: '800' },
+  sheetSummaryText: { marginTop: 8, fontSize: 14, lineHeight: 21, color: '#4b5563' },
+  sheetList: { paddingTop: 10, paddingBottom: 6, gap: 10 },
+  sheetNoteCard: {
+    borderRadius: 18,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#ebe5d7',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sheetNoteCardSelected: { borderColor: '#111827', backgroundColor: '#fffdf7' },
+  checkWrap: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: '#d6d3d1', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  checkWrapSelected: { backgroundColor: '#111827', borderColor: '#111827' },
+  sheetNoteBody: { flex: 1 },
+  sheetNoteTitle: { fontSize: 14, lineHeight: 20, color: '#111827', fontWeight: '700' },
+  sheetNoteMeta: { marginTop: 4, fontSize: 12, color: '#94a3b8' },
+  sheetActionRow: { marginTop: 14, flexDirection: 'row', gap: 10 },
+  sheetGhostBtn: { flex: 1, height: 46, borderRadius: 14, backgroundColor: '#f4f4f5', alignItems: 'center', justifyContent: 'center' },
+  sheetGhostText: { fontSize: 14, color: '#374151', fontWeight: '700' },
+  sheetPrimaryBtn: { flex: 1.1, height: 46, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
+  sheetPrimaryText: { fontSize: 14, color: 'white', fontWeight: '800' },
 
   modalMask: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(15,23,42,0.44)' },
   quickSheet: {
@@ -468,10 +632,6 @@ const styles = StyleSheet.create({
   settingText: { fontSize: 14, color: '#94a3b8' },
   helperText: { marginTop: 8, fontSize: 12, color: '#94a3b8' },
 
-  swipeHint: { position: 'absolute', top: 18, right: 16, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  swipeHintNext: { backgroundColor: '#dbeafe' },
-  swipeHintRead: { backgroundColor: '#dcfce7' },
-  swipeHintText: { fontSize: 12, fontWeight: '700', color: '#0f172a' },
   feedbackPill: { position: 'absolute', bottom: 20, alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: '#111827' },
   feedbackText: { fontSize: 12, color: 'white', fontWeight: '600' },
 });

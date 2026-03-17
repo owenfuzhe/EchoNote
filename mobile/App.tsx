@@ -12,10 +12,12 @@ import SearchView from './src/components/SearchView';
 import TasksView from './src/components/TasksView';
 import ExploreView from './src/components/ExploreView';
 import AIChatView from './src/components/AIChatView';
+import BriefingView from './src/components/BriefingView';
 import BottomNav from './src/components/BottomNav';
 import VoiceCapture from './src/components/VoiceCapture';
 import CaptureMenu from './src/components/CaptureMenu';
 import { fetchContent, isWechatUrl, isXiaohongshuUrl } from './src/services/contentFetcher';
+import { getDefaultBriefingNoteIds } from './src/services/briefing';
 import { useNoteStore } from './src/store/noteStore';
 import { AppView } from './src/types';
 
@@ -31,8 +33,9 @@ export default function App() {
   const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND);
   const [aiDraftInput, setAiDraftInput] = useState('');
   const [aiDraftVersion, setAiDraftVersion] = useState(0);
+  const [briefingNoteIds, setBriefingNoteIds] = useState<string[]>([]);
 
-  const { fetchNotes, createNote } = useNoteStore();
+  const { notes, fetchNotes, createNote } = useNoteStore();
 
   useEffect(() => {
     fetchNotes();
@@ -41,6 +44,15 @@ export default function App() {
       if (saved) setBackendUrl(saved);
     })();
   }, [fetchNotes]);
+
+  useEffect(() => {
+    if (!notes.length) return;
+
+    setBriefingNoteIds((current) => {
+      const valid = current.filter((id) => notes.some((note) => note.id === id));
+      return valid.length ? valid : getDefaultBriefingNoteIds(notes);
+    });
+  }, [notes]);
 
   const handleNavigate = (view: AppView, noteId?: string) => {
     if (noteId) setSelectedNoteId(noteId);
@@ -177,13 +189,20 @@ export default function App() {
       <SafeAreaView style={styles.app} edges={['top', 'left', 'right']}>
         <StatusBar barStyle="dark-content" />
 
-        {currentView === 'home' && <HomeView onNavigate={handleNavigate} />}
+        {currentView === 'home' && (
+          <HomeView
+            onNavigate={handleNavigate}
+            briefingNoteIds={briefingNoteIds}
+            onUpdateBriefingNoteIds={setBriefingNoteIds}
+          />
+        )}
         {currentView === 'library' && <LibraryView onNavigate={handleNavigate} />}
         {currentView === 'document' && <DocumentView onNavigate={handleNavigate} noteId={selectedNoteId} />}
         {currentView === 'search' && <SearchView onNavigate={handleNavigate} onClose={() => setCurrentView('home')} />}
         {currentView === 'tasks' && <TasksView onNavigate={handleNavigate} />}
         {currentView === 'explore' && <ExploreView onNavigate={handleNavigate} />}
         {currentView === 'aiChat' && <AIChatView onNavigate={handleNavigate} initialInput={aiDraftInput} initialInputVersion={aiDraftVersion} />}
+        {currentView === 'briefing' && <BriefingView onNavigate={handleNavigate} selectedNoteIds={briefingNoteIds} />}
 
         <BottomNav
           currentView={currentView}
