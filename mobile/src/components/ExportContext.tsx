@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import * as Clipboard from 'expo-clipboard';
 import { Check, Copy, Rocket, X } from 'lucide-react-native';
 import { Note } from '../types';
+import { richTextToPlainText } from '../utils/richText';
 
 interface Props {
   notes: Note[];
@@ -27,7 +28,7 @@ export default function ExportContext({ notes, isOpen, onClose }: Props) {
           id: note.id,
           type: note.type,
           title: note.title,
-          content: note.content.slice(0, 500),
+          content: richTextToPlainText(note.content).slice(0, 500),
           tags: note.tags,
           createdAt: note.createdAt,
           updatedAt: note.updatedAt,

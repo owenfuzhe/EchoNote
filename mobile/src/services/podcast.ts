@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
+import { richTextToPlainText } from '../utils/richText';
 
 export type GenerationProgressCallback = (progress: number, status: string) => void;
 
@@ -35,7 +36,7 @@ function genId() {
 }
 
 function cleanText(content: string): string {
-  return content
+  return richTextToPlainText(content)
     .replace(/#{1,6}\s/g, '')
     .replace(/\*\*|__/g, '')
     .replace(/\*|_/g, '')

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Note } from '../types';
+import { richTextToPlainText } from '../utils/richText';
 
 export interface Template {
   id: string;
@@ -67,7 +68,7 @@ export function recommendTemplates(notes: Note[], maxResults = 3): TemplateRecom
     const hits: string[] = [];
 
     recentNotes.forEach((note) => {
-      const text = `${note.title} ${note.content}`.toLowerCase();
+      const text = `${note.title} ${richTextToPlainText(note.content)}`.toLowerCase();
       const tags = note.tags || [];
       template.keywords.forEach((keyword) => {
         const lower = keyword.toLowerCase();

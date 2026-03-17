@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Settings, Filter, ChevronDown, Clock, FileText, Image, Mic, Link, StickyNote, Archive, Sparkles } from "lucide-react";
+import { Search, Settings, Filter, ChevronDown, Clock, FileText, Image, Mic, Link, StickyNote, Archive, Sparkles, LayoutGrid, List } from "lucide-react";
 import { useNoteStore, Note } from "../store/note-store";
 import { MOCK_NOTES_200 } from "../services/mock-data";
 import { generateTags, clusterNotes, TopicCluster } from "../services/ai-tagging";
@@ -61,6 +61,7 @@ export default function LibraryView({ onNavigate }: LibraryViewProps) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
+  const [viewMode, setViewMode] = useState<"list" | "card">("list");
 
   // 合并真实数据和 Mock 数据
   const allNotes = [...realNotes, ...MOCK_NOTES];
@@ -204,44 +205,91 @@ export default function LibraryView({ onNavigate }: LibraryViewProps) {
           </button>
 
           {/* 视图切换 */}
-          <button className="flex items-center gap-1 px-3 py-2 bg-white/60 backdrop-blur-md rounded-lg text-sm text-gray-700 hover:bg-white/80 transition-all flex-shrink-0">
-            <span>标题列表</span>
+          <button
+            onClick={() => setViewMode(viewMode === "list" ? "card" : "list")}
+            className="flex items-center gap-1 px-3 py-2 bg-white/60 backdrop-blur-md rounded-lg text-sm text-gray-700 hover:bg-white/80 transition-all flex-shrink-0"
+          >
+            {viewMode === "list" ? (
+              <>
+                <LayoutGrid size={14} />
+                <span>卡片视图</span>
+              </>
+            ) : (
+              <>
+                <List size={14} />
+                <span>标题列表</span>
+              </>
+            )}
           </button>
         </div>
 
-        {/* Notes List */}
-        <div className="space-y-1">
-          {sortedNotes.map((note, index) => (
-            <button
-              key={note.id}
-              onClick={() => onNavigate("document", note.id)}
-              className="w-full text-left py-4 border-b border-gray-100 last:border-0 group"
-            >
-              <div className="flex items-start gap-3">
-                {/* 未读指示器 */}
-                <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 text-[15px]">
-                    {note.title || "无标题"}
-                  </h3>
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
-                    <span>xiaohongshu.com</span>
-                    <span>·</span>
-                    <span>{getTypeLabel(note.type)}</span>
-                    <span>·</span>
-                    <span>{formatTime(note.updatedAt)}</span>
+        {/* 标题列表视图 */}
+        {viewMode === "list" && (
+          <div className="space-y-1">
+            {sortedNotes.map((note) => (
+              <button
+                key={note.id}
+                onClick={() => onNavigate("document", note.id)}
+                className="w-full text-left py-4 border-b border-gray-100 last:border-0 group"
+              >
+                <div className="flex items-start gap-3">
+                  {/* 未读指示器 */}
+                  <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
+
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 text-[15px]">
+                      {note.title || "无标题"}
+                    </h3>
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <span>xiaohongshu.com</span>
+                      <span>·</span>
+                      <span>{getTypeLabel(note.type)}</span>
+                      <span>·</span>
+                      <span>{formatTime(note.updatedAt)}</span>
+                    </div>
+                  </div>
+
+                  {/* 类型图标 */}
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <FileText size={16} className="text-gray-500" />
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 文章卡片视图 */}
+        {viewMode === "card" && (
+          <div className="grid grid-cols-2 gap-4">
+            {sortedNotes.map((note) => (
+              <button
+                key={note.id}
+                onClick={() => onNavigate("document", note.id)}
+                className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-left hover:shadow-md transition-shadow"
+              >
+                {/* 封面图占位 */}
+                <div className="w-full aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
+                  <div className="w-12 h-12 rounded-full bg-white/50 flex items-center justify-center">
+                    <FileText size={24} className="text-gray-400" />
                   </div>
                 </div>
 
-                {/* 类型图标 */}
-                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                  <FileText size={16} className="text-gray-500" />
+                {/* 标题 */}
+                <h3 className="font-medium text-gray-900 mb-2 line-clamp-2 text-[15px]">
+                  {note.title || "无标题"}
+                </h3>
+
+                {/* 来源和时间 */}
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <span>xiaohongshu.com</span>
+                  <span>·</span>
+                  <span>{formatTime(note.updatedAt)}</span>
                 </div>
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
 
         {sortedNotes.length === 0 && (
           <div className="text-center py-12">

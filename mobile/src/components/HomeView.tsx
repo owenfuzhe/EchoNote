@@ -1,23 +1,71 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BookOpen, ChevronRight, Compass, FileText, Headphones, MessageSquare } from 'lucide-react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BookOpen, Check, ChevronRight, Compass, FileText, Sparkles } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import {
+  NativeViewGestureHandler,
+  PanGestureHandler,
+  PanGestureHandlerGestureEvent,
+  PanGestureHandlerStateChangeEvent,
+  State,
+} from 'react-native-gesture-handler';
+import { buildBriefing, getBriefingNotes } from '../services/briefing';
+import { buildTopicWorkspace, getExploreTopicOptions } from '../services/topic-workspace';
 import { useNoteStore } from '../store/noteStore';
+import { mobileType } from '../theme/typography';
 import { AppView, Note } from '../types';
+import { richTextToPlainText } from '../utils/richText';
+import TopicPickerSheet from './TopicPickerSheet';
 
-interface Props { onNavigate: (view: AppView, noteId?: string) => void }
+interface Props {
+  onNavigate: (view: AppView, noteId?: string) => void;
+  briefingNoteIds: string[];
+  onUpdateBriefingNoteIds: (ids: string[]) => void;
+  exploreTopic: string;
+  customExploreTopics: string[];
+  onSelectExploreTopic: (topic: string) => void;
+  onCreateExploreTopic: (topic: string) => void;
+}
 
-const SWIPE_TRIGGER = 56;
+const SWIPE_TRIGGER_RIGHT = 42;
+const SWIPE_TRIGGER_LEFT = 36;
 const SWIPE_OUT = 460;
+const SWIPE_VELOCITY_TRIGGER_RIGHT = 0.38;
+const SWIPE_VELOCITY_TRIGGER_LEFT = 0.28;
+const SWIPE_NUDGE_THRESHOLD = 8;
+const PAN_ACTIVE_OFFSET_X = 10;
+const PAN_FAIL_OFFSET_Y = 12;
+const DEFAULT_BRIEFING_COUNT = 3;
+const MAX_BRIEFING_COUNT = 5;
 
-export default function HomeView({ onNavigate }: Props) {
+export default function HomeView({
+  onNavigate,
+  briefingNoteIds,
+  onUpdateBriefingNoteIds,
+  exploreTopic,
+  customExploreTopics,
+  onSelectExploreTopic,
+  onCreateExploreTopic,
+}: Props) {
   const { notes, updateNote } = useNoteStore();
   const recent = useMemo(() => notes.slice(0, 8), [notes]);
+  const briefingPool = useMemo(() => notes.slice(0, 6), [notes]);
+  const briefingNotes = useMemo(() => getBriefingNotes(briefingPool, briefingNoteIds), [briefingPool, briefingNoteIds]);
+  const briefing = useMemo(() => buildBriefing(briefingNotes), [briefingNotes]);
+  const topicOptions = useMemo(() => getExploreTopicOptions(notes, customExploreTopics), [notes, customExploreTopics]);
+  const topicWorkspace = useMemo(() => buildTopicWorkspace(notes, exploreTopic, customExploreTopics), [notes, exploreTopic, customExploreTopics]);
 
   const [quickReadOpen, setQuickReadOpen] = useState(false);
   const [quickIndex, setQuickIndex] = useState(0);
   const [, setSwipeHint] = useState<'next' | 'read' | null>(null);
   const [feedback, setFeedback] = useState('');
   const [quickBodyScrollEnabled, setQuickBodyScrollEnabled] = useState(true);
+  const [, setBodySwipeNudge] = useState<'next' | 'read' | null>(null);
+  const bodyNudgeHapticRef = useRef<'next' | 'read' | null>(null);
+  const panRef = useRef<any>(null);
+  const nativeScrollRef = useRef<any>(null);
+  const [briefingAdjustOpen, setBriefingAdjustOpen] = useState(false);
+  const [topicPickerOpen, setTopicPickerOpen] = useState(false);
 
   const translateX = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -62,18 +110,16 @@ export default function HomeView({ onNavigate }: Props) {
     }
   };
 
-  const toPlain = (text: string) => text.replace(/#{1,6}\s/g, '').replace(/```[\s\S]*?```/g, '').replace(/\s+/g, ' ').trim();
-
   const quickSummary = (note?: Note) => {
     if (!note) return '';
-    const plain = toPlain(note.content || '');
+    const plain = richTextToPlainText(note.content || '').replace(/\s+/g, ' ').trim();
     if (!plain) return '这篇内容已导入，点击封面可查看原文笔记。';
     return plain.slice(0, 220) + (plain.length > 220 ? '...' : '');
   };
 
   const quickBullets = (note?: Note) => {
     if (!note) return [] as string[];
-    const plain = toPlain(note.content || '');
+    const plain = richTextToPlainText(note.content || '').replace(/\s+/g, ' ').trim();
     const sentence = plain
       .split(/[。！？.!?；;\n]/)
       .map((s) => s.trim())
@@ -89,6 +135,88 @@ export default function HomeView({ onNavigate }: Props) {
     return chunks;
   };
 
+  const quickQuestions = (note?: Note) => {
+    const seed = quickBullets(note);
+    if (!seed.length) {
+      const title = (note?.title || '这篇内容').trim();
+      return [
+        `${title}最核心的观点是什么？`,
+        `${title}在实际场景中的应用边界是什么？`,
+        `${title}下一步最值得追问的问题是什么？`,
+      ];
+    }
+    return seed.slice(0, 3).map((item) => {
+      const trimmed = item.replace(/[。.!?？\s]+$/g, '');
+      const short = trimmed.slice(0, 34);
+      return `${short}？`;
+    });
+  };
+
+  const relatedCollects = (note?: Note) => {
+    if (!note) return [] as string[];
+    const tags = (note.tags || []).filter((t) => t && t !== '已读').slice(0, 2);
+    if (tags.length) return tags.map((tag) => `收藏分组 · ${tag}`);
+    if (note.sourceUrl) return [`来源收藏 · ${extractSite(note)}`];
+    return ['升级 Pro+AI 会员以查看'];
+  };
+
+  const shouldCaptureHorizontalSwipe = (dx: number, dy: number, vx: number, vy: number) => {
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const absVx = Math.abs(vx);
+    const absVy = Math.abs(vy);
+
+    if (absDx < 4) return false;
+    if (absDy > 10 && absDy > absDx * 1.25) return false;
+    if (absDx > 6 && absDx > absDy * 0.66) return true;
+    return absDx > 12 && absVx > 0.1 && absVx > absVy * 0.75;
+  };
+
+  const getBodyNudgeIntent = (dx: number, dy: number) => {
+    if (!shouldCaptureHorizontalSwipe(dx, dy, 0, 0)) return null;
+    if (dx >= SWIPE_NUDGE_THRESHOLD) return 'read';
+    if (dx <= -SWIPE_NUDGE_THRESHOLD) return 'next';
+    return null;
+  };
+
+  const updateBodyNudge = (dx: number, dy: number) => {
+    const intent = getBodyNudgeIntent(dx, dy);
+    setBodySwipeNudge(intent);
+
+    if (intent && bodyNudgeHapticRef.current !== intent) {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      bodyNudgeHapticRef.current = intent;
+    }
+    if (!intent) bodyNudgeHapticRef.current = null;
+  };
+
+  const resetBodyNudge = () => {
+    setBodySwipeNudge(null);
+    bodyNudgeHapticRef.current = null;
+  };
+
+  const handlePanMove = (dx: number) => {
+    const dampedX = dx > 0 ? dx : dx * 0.97;
+    translateX.setValue(dampedX);
+    const pullScale = Math.max(0.97, 1 - Math.abs(dampedX) / 2200);
+    cardScale.setValue(pullScale);
+
+    if (dx > 18) setSwipeHint('read');
+    else if (dx < -18) setSwipeHint('next');
+    else setSwipeHint(null);
+  };
+
+  const handlePanRelease = (dx: number, dy: number, vx: number, vy: number) => {
+    resetBodyNudge();
+    const horizontalIntent = shouldCaptureHorizontalSwipe(dx, dy, vx, vy);
+    const projectedX = dx + vx * 110;
+    if (horizontalIntent && vx > SWIPE_VELOCITY_TRIGGER_RIGHT) return markAsRead();
+    if (horizontalIntent && vx < -SWIPE_VELOCITY_TRIGGER_LEFT) return nextArticle();
+    if (horizontalIntent && projectedX > SWIPE_TRIGGER_RIGHT) return markAsRead();
+    if (horizontalIntent && projectedX < -SWIPE_TRIGGER_LEFT) return nextArticle();
+    animateBack(vx);
+  };
+
   const openQuickRead = (index: number) => {
     setQuickIndex(index);
     setQuickReadOpen(true);
@@ -97,6 +225,7 @@ export default function HomeView({ onNavigate }: Props) {
     cardOpacity.setValue(1);
     cardScale.setValue(1);
     setSwipeHint(null);
+    resetBodyNudge();
   };
 
   const animateBack = (vx = 0) => {
@@ -115,7 +244,10 @@ export default function HomeView({ onNavigate }: Props) {
         friction: 12,
         useNativeDriver: true,
       }),
-    ]).start(() => setSwipeHint(null));
+    ]).start(() => {
+      setSwipeHint(null);
+      resetBodyNudge();
+    });
   };
 
   const transitionToNext = (message: string, direction: 1 | -1 = 1) => {
@@ -163,48 +295,64 @@ export default function HomeView({ onNavigate }: Props) {
         }),
       ]).start(() => setQuickBodyScrollEnabled(true));
       setSwipeHint(null);
+      resetBodyNudge();
       setFeedback(message);
     });
   };
 
-  const nextArticle = () => transitionToNext('已切换下一篇', 1);
+  const nextArticle = () => transitionToNext('已切换下一篇', -1);
 
   const markAsRead = async () => {
     const note = recent[quickIndex];
     if (!note) return;
     const tags = Array.from(new Set([...(note.tags || []), '已读']));
     await updateNote(note.id, { tags });
-    transitionToNext('已标记为已读', -1);
+    transitionToNext('已标记为已读', 1);
   };
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponderCapture: () => false,
-        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 4 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 0.8,
-        onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dx) > 2 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 0.65,
-        onPanResponderGrant: () => setQuickBodyScrollEnabled(false),
-        onPanResponderMove: (_, gesture) => {
-          const dampedX = gesture.dx > 0 ? gesture.dx * 0.98 : gesture.dx * 0.94;
-          translateX.setValue(dampedX);
-          const pullScale = Math.max(0.97, 1 - Math.abs(dampedX) / 2200);
-          cardScale.setValue(pullScale);
+  const handleCardPanGesture = (event: PanGestureHandlerGestureEvent) => {
+    const { translationX, translationY } = event.nativeEvent;
+    handlePanMove(translationX);
+    updateBodyNudge(translationX, translationY);
+  };
+  const toggleBriefingNote = (noteId: string) => {
+    const selectedSet = new Set(briefingNoteIds);
 
-          if (gesture.dx > 24) setSwipeHint('next');
-          else if (gesture.dx < -24) setSwipeHint('read');
-          else setSwipeHint(null);
-        },
-        onPanResponderRelease: (_, gesture) => {
-          const projectedX = gesture.dx + gesture.vx * 110;
-          if (projectedX > SWIPE_TRIGGER) return nextArticle();
-          if (projectedX < -SWIPE_TRIGGER) return markAsRead();
-          animateBack(gesture.vx);
-        },
-        onPanResponderTerminate: () => animateBack(),
-        onPanResponderTerminationRequest: () => false,
-      }),
-    [quickIndex, recent.length]
-  );
+    if (selectedSet.has(noteId)) {
+      if (selectedSet.size <= 1) return;
+      selectedSet.delete(noteId);
+      onUpdateBriefingNoteIds(Array.from(selectedSet));
+      return;
+    }
+
+    if (selectedSet.size >= MAX_BRIEFING_COUNT) return;
+    selectedSet.add(noteId);
+    onUpdateBriefingNoteIds(Array.from(selectedSet));
+  };
+
+  const resetBriefingNotes = () => {
+    onUpdateBriefingNoteIds(briefingPool.slice(0, DEFAULT_BRIEFING_COUNT).map((note) => note.id));
+  };
+
+  const handleCardPanStateChange = (event: PanGestureHandlerStateChangeEvent) => {
+    const { oldState, state, translationX, translationY, velocityX, velocityY } = event.nativeEvent;
+    const normalizedVx = velocityX / 1000;
+    const normalizedVy = velocityY / 1000;
+
+    if (state === State.ACTIVE) {
+      setQuickBodyScrollEnabled(false);
+      return;
+    }
+
+    if (oldState === State.ACTIVE) {
+      handlePanRelease(translationX, translationY, normalizedVx, normalizedVy);
+      return;
+    }
+
+    if (state === State.CANCELLED || state === State.FAILED) {
+      animateBack();
+    }
+  };
 
   return (
     <>
@@ -244,18 +392,32 @@ export default function HomeView({ onNavigate }: Props) {
           <Text style={styles.sTitle}>快速消化</Text>
         </View>
 
-        <View style={styles.blockCard}>
-          <View style={styles.blockHead}><Headphones size={16} color="#4f46e5" /><Text style={styles.blockTitle}>快速消化</Text></View>
-          <Text style={styles.blockDesc}>把最近导入内容快速变成可听可读的结构化信息。</Text>
-          <View style={styles.actionRow}>
-            <Pressable style={styles.primaryAction} onPress={() => onNavigate('explore')}>
-              <Headphones size={14} color="white" />
-              <Text style={styles.primaryActionText}>AI 播客</Text>
+        <View style={styles.capsuleCard}>
+          <View style={styles.capsuleHead}>
+            <View style={styles.capsuleHeadLeft}>
+              <View style={styles.capsuleIconWrap}>
+                <Sparkles size={15} color="#111827" />
+              </View>
+              <Text style={styles.capsuleTitle}>快速消化</Text>
+            </View>
+            <Text style={styles.capsuleMeta}>{briefing.coverageLabel}</Text>
+          </View>
+
+          <Pressable style={styles.capsuleCopyArea} onPress={() => setBriefingAdjustOpen(true)}>
+            <Text style={styles.capsuleCopy}>{briefing.capsuleText}</Text>
+            <Text style={styles.capsuleSubcopy}>{briefing.oneLiner}</Text>
+            <View style={styles.capsuleAdjustRow}>
+              <Text style={styles.capsuleAdjustText}>调整本期内容</Text>
+              <ChevronRight size={15} color="#64748b" />
+            </View>
+          </Pressable>
+
+          <View style={styles.capsuleFooter}>
+            <Pressable style={styles.readBriefingBtn} onPress={() => onNavigate('briefing')}>
+              <BookOpen size={14} color="white" />
+              <Text style={styles.readBriefingText}>阅读简报</Text>
             </Pressable>
-            <Pressable style={styles.secondaryAction} onPress={() => onNavigate('aiChat')}>
-              <FileText size={14} color="#334155" />
-              <Text style={styles.secondaryActionText}>简报</Text>
-            </Pressable>
+            <Text style={styles.capsuleFooterText}>{briefing.dateLabel}</Text>
           </View>
         </View>
 
@@ -263,64 +425,137 @@ export default function HomeView({ onNavigate }: Props) {
           <Text style={styles.sTitle}>深度探索</Text>
         </View>
 
-        <View style={styles.blockCard}>
-          <View style={styles.blockHead}><Compass size={16} color="#2563eb" /><Text style={styles.blockTitle}>深度探索</Text></View>
-          <Text style={styles.blockDesc}>设置感兴趣 topic，持续追踪并进行 guided learning。</Text>
-          <View style={styles.actionColumn}>
-            <Pressable style={styles.linkRow} onPress={() => onNavigate('search')}>
-              <BookOpen size={15} color="#1d4ed8" />
-              <Text style={styles.linkText}>设置 Topic 追踪</Text>
-              <ChevronRight size={15} color="#94a3b8" />
+        <View style={styles.topicCard}>
+          <View style={styles.topicCardHead}>
+            <View style={styles.topicCardHeadLeft}>
+              <View style={styles.topicIconWrap}>
+                <Compass size={15} color="#2563eb" />
+              </View>
+              <View>
+                <Text style={styles.topicCardLabel}>追踪中的 Topic</Text>
+                <Text style={styles.topicCardTitle}>{topicWorkspace.topicLabel}</Text>
+              </View>
+            </View>
+            <Text style={styles.topicCardTag}>{topicWorkspace.topicSource === 'custom' ? '手动设置' : 'AI 识别'}</Text>
+          </View>
+
+          <Text style={styles.topicSummary}>{topicWorkspace.summary}</Text>
+
+          <Text style={styles.topicQuietMeta}>
+            {`${Math.max(topicWorkspace.freshCount, topicWorkspace.noteCount ? 1 : 0)} 条进展 · ${Math.max(topicWorkspace.relationCount, topicWorkspace.noteCount ? 1 : 0)} 个关联视角 · 1 个挑战`}
+          </Text>
+
+          <View style={styles.topicCardFooter}>
+            <Pressable style={styles.topicPrimaryBtn} onPress={() => onNavigate('explore')}>
+              <Text style={styles.topicPrimaryText}>继续探索</Text>
             </Pressable>
-            <Pressable style={styles.linkRow} onPress={() => onNavigate('aiChat')}>
-              <MessageSquare size={15} color="#1d4ed8" />
-              <Text style={styles.linkText}>开始 Guided Learning</Text>
-              <ChevronRight size={15} color="#94a3b8" />
+            <Pressable style={styles.topicTextBtn} onPress={() => setTopicPickerOpen(true)}>
+              <Text style={styles.topicTextBtnText}>调整 Topic</Text>
             </Pressable>
           </View>
         </View>
       </ScrollView>
 
+      <Modal visible={briefingAdjustOpen} transparent animationType="slide" onRequestClose={() => setBriefingAdjustOpen(false)}>
+        <View style={styles.sheetMask}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setBriefingAdjustOpen(false)} />
+          <View style={styles.adjustSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>调整本期简报内容</Text>
+            <Text style={styles.sheetDesc}>建议保留 3 到 5 篇。点击文稿卡片即可增减收录内容。</Text>
+
+            <View style={styles.sheetSummary}>
+              <Text style={styles.sheetSummaryTitle}>{briefing.title}</Text>
+              <Text style={styles.sheetSummaryText}>{briefing.oneLiner}</Text>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetList}>
+              {briefingPool.map((note) => {
+                const selected = briefingNoteIds.includes(note.id);
+                return (
+                  <Pressable key={note.id} style={[styles.sheetNoteCard, selected && styles.sheetNoteCardSelected]} onPress={() => toggleBriefingNote(note.id)}>
+                    <View style={[styles.checkWrap, selected && styles.checkWrapSelected]}>
+                      {selected ? <Check size={14} color="white" /> : null}
+                    </View>
+                    <View style={styles.sheetNoteBody}>
+                      <Text numberOfLines={2} style={styles.sheetNoteTitle}>{note.title}</Text>
+                      <Text style={styles.sheetNoteMeta}>{`${extractSite(note)} · ${format(note.updatedAt)}`}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.sheetActionRow}>
+              <Pressable style={styles.sheetGhostBtn} onPress={resetBriefingNotes}>
+                <Text style={styles.sheetGhostText}>恢复默认 3 篇</Text>
+              </Pressable>
+              <Pressable style={styles.sheetPrimaryBtn} onPress={() => setBriefingAdjustOpen(false)}>
+                <Text style={styles.sheetPrimaryText}>{`完成（${briefing.notes.length} 篇）`}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <TopicPickerSheet
+        visible={topicPickerOpen}
+        title="调整深度探索 Topic"
+        description="选择一个你想持续追踪的问题空间。首页和探索页会围绕它生成进展、关联和思辨挑战。"
+        currentTopic={topicWorkspace.topicLabel}
+        topicOptions={topicOptions}
+        onSelectTopic={onSelectExploreTopic}
+        onCreateTopic={onCreateExploreTopic}
+        onClose={() => setTopicPickerOpen(false)}
+      />
+
       <Modal visible={quickReadOpen} transparent animationType="fade" onRequestClose={() => setQuickReadOpen(false)}>
         <View style={styles.modalMask}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setQuickReadOpen(false)} />
 
-          <Animated.View
-            style={[
-              styles.quickSheet,
-              { transform: [{ translateX }, { scale: cardScale }, { rotate: cardRotate }], opacity: cardOpacity },
-            ]}
-            {...panResponder.panHandlers}
+          <PanGestureHandler
+            ref={panRef}
+            activeOffsetX={[-PAN_ACTIVE_OFFSET_X, PAN_ACTIVE_OFFSET_X]}
+            failOffsetY={[-PAN_FAIL_OFFSET_Y, PAN_FAIL_OFFSET_Y]}
+            simultaneousHandlers={nativeScrollRef}
+            onGestureEvent={handleCardPanGesture}
+            onHandlerStateChange={handleCardPanStateChange}
           >
             <Animated.View
-              pointerEvents="none"
               style={[
-                styles.swipeOverlay,
-                styles.swipeOverlayRight,
-                {
-                  opacity: rightRevealProgress,
-                  transform: [{ translateX: rightRevealProgress.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-                },
+                styles.quickSheet,
+                { transform: [{ translateX }, { scale: cardScale }, { rotate: cardRotate }], opacity: cardOpacity },
               ]}
             >
-              <Text style={styles.swipeOverlayArrow}>→</Text>
-              <Text style={styles.swipeOverlayTitle}>下一条</Text>
-              <Text style={styles.swipeOverlayDesc}>保持这篇未读</Text>
-            </Animated.View>
-
             <Animated.View
               pointerEvents="none"
               style={[
                 styles.swipeOverlay,
                 styles.swipeOverlayLeft,
                 {
-                  opacity: leftRevealProgress,
-                  transform: [{ translateX: leftRevealProgress.interpolate({ inputRange: [0, 1], outputRange: [-14, 0] }) }],
+                  opacity: rightRevealProgress,
+                  transform: [{ translateX: rightRevealProgress.interpolate({ inputRange: [0, 1], outputRange: [-14, 0] }) }],
                 },
               ]}
             >
               <View style={styles.readCheckBadge}><Text style={styles.readCheckText}>✓</Text></View>
               <Text style={styles.swipeReadTitle}>文章已读</Text>
+            </Animated.View>
+
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.swipeOverlay,
+                styles.swipeOverlayRight,
+                {
+                  opacity: leftRevealProgress,
+                  transform: [{ translateX: leftRevealProgress.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+                },
+              ]}
+            >
+              <Text style={styles.swipeOverlayArrow}>→</Text>
+              <Text style={styles.swipeOverlayTitle}>下一条</Text>
+              <Text style={styles.swipeOverlayDesc}>保持这篇未读</Text>
             </Animated.View>
 
             <Pressable
@@ -338,20 +573,44 @@ export default function HomeView({ onNavigate }: Props) {
               </View>
             </Pressable>
 
-            <View style={styles.quickBody}>
-              <ScrollView
-                showsVerticalScrollIndicator
-                scrollEnabled={quickBodyScrollEnabled}
-                directionalLockEnabled
-                contentContainerStyle={styles.quickBodyContent}
-                {...panResponder.panHandlers}
-              >
-                <Text style={styles.quickLabel}>快读 / QUICK READ</Text>
-                <Text style={styles.quickSummary}>{quickSummary(currentQuickNote)}</Text>
+              <View style={styles.quickBody}>
+                <NativeViewGestureHandler ref={nativeScrollRef} simultaneousHandlers={panRef}>
+                  <ScrollView
+                    showsVerticalScrollIndicator
+                    scrollEnabled={quickBodyScrollEnabled}
+                    directionalLockEnabled
+                    contentContainerStyle={styles.quickBodyContent}
+                  >
+                <View style={styles.quickSection}>
+                  <Text style={styles.quickLabel}>快读 / QUICK READ</Text>
+                  <Text style={styles.quickSummary}>{quickSummary(currentQuickNote)}</Text>
+                  <View style={styles.bulletWrap}>
+                    {quickBullets(currentQuickNote).slice(0, 2).map((b, idx) => (
+                      <Text key={`${idx}-${b.slice(0, 8)}`} style={styles.bulletText}>{`${idx + 1}. ${b}`}</Text>
+                    ))}
+                  </View>
+                </View>
 
-                <View style={styles.bulletWrap}>
-                  {quickBullets(currentQuickNote).map((b, idx) => (
-                    <Text key={`${idx}-${b.slice(0, 8)}`} style={styles.bulletText}>{`${idx + 1}. ${b}`}</Text>
+                <View style={styles.quickSection}>
+                  <View style={styles.sectionRow}>
+                    <Text style={styles.sectionTitle}>关键问题</Text>
+                    <Text style={styles.sectionAction}>全部展开</Text>
+                  </View>
+                  {quickQuestions(currentQuickNote).map((q, idx) => (
+                    <Pressable key={`${idx}-${q.slice(0, 6)}`} style={styles.questionRow}>
+                      <Text numberOfLines={2} style={styles.questionText}>{q}</Text>
+                      <ChevronRight size={16} color="#cbd5e1" />
+                    </Pressable>
+                  ))}
+                </View>
+
+                <View style={styles.quickSection}>
+                  <Text style={styles.sectionTitle}>相关收藏</Text>
+                  {relatedCollects(currentQuickNote).map((item, idx) => (
+                    <Pressable key={`${idx}-${item.slice(0, 8)}`} style={styles.collectRow}>
+                      <Text numberOfLines={1} style={styles.collectText}>{item}</Text>
+                      <ChevronRight size={16} color="#cbd5e1" />
+                    </Pressable>
                   ))}
                 </View>
 
@@ -360,14 +619,16 @@ export default function HomeView({ onNavigate }: Props) {
                   <Pressable><Text style={styles.settingText}>解读设置</Text></Pressable>
                 </View>
 
-                <Text style={styles.helperText}>右滑下一篇，左滑标记已读</Text>
-              </ScrollView>
-            </View>
+                <Text style={styles.helperText}>轻滑卡片：右滑标记已读，左滑下一篇</Text>
+                  </ScrollView>
+                </NativeViewGestureHandler>
+              </View>
 
-            {feedback ? (
-              <View style={styles.feedbackPill}><Text style={styles.feedbackText}>{feedback}</Text></View>
-            ) : null}
-          </Animated.View>
+              {feedback ? (
+                <View style={styles.feedbackPill}><Text style={styles.feedbackText}>{feedback}</Text></View>
+              ) : null}
+            </Animated.View>
+          </PanGestureHandler>
         </View>
       </Modal>
     </>
@@ -377,10 +638,10 @@ export default function HomeView({ onNavigate }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc', paddingHorizontal: 16, paddingTop: 14 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  h1: { fontSize: 44, fontWeight: '900', color: '#0f172a' },
+  h1: { ...mobileType.screenTitle },
 
   sectionHeader: { marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sTitle: { fontSize: 24, fontWeight: '800', color: '#111827' },
+  sTitle: { ...mobileType.sectionTitle },
   moreText: { fontSize: 16, color: '#9ca3af', fontWeight: '600' },
 
   recentCards: { gap: 12, paddingRight: 20 },
@@ -391,22 +652,101 @@ const styles = StyleSheet.create({
   noteTop: { height: 88, backgroundColor: '#f3f4f6', justifyContent: 'space-between', alignItems: 'flex-start', padding: 10 },
   fileIcon: { width: 34, height: 34, borderRadius: 9, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
   readBadge: { fontSize: 11, color: '#15803d', backgroundColor: '#dcfce7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, fontWeight: '700' },
-  noteTitle: { fontSize: 16, fontWeight: '700', color: '#111827', minHeight: 44 },
+  noteTitle: { ...mobileType.cardTitle, minHeight: 44 },
   noteSite: { marginTop: 2, fontSize: 12, color: '#6b7280' },
   noteTime: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
+  capsuleCard: {
+    marginTop: 12,
+    backgroundColor: '#fffef9',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#e8dfce',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2,
+  },
+  capsuleHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  capsuleHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  capsuleIconWrap: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f7ead1', alignItems: 'center', justifyContent: 'center' },
+  capsuleTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
+  capsuleMeta: { fontSize: 12, color: '#92400e', backgroundColor: '#fff3d6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden', fontWeight: '700' },
+  capsuleCopyArea: { marginTop: 12, borderRadius: 18, backgroundColor: '#fffcf3', borderWidth: 1, borderColor: '#efe4c9', paddingHorizontal: 14, paddingVertical: 14 },
+  capsuleCopy: { fontSize: 15, lineHeight: 22, color: '#1f2937', fontWeight: '700' },
+  capsuleSubcopy: { marginTop: 8, fontSize: 13, lineHeight: 20, color: '#64748b' },
+  capsuleAdjustRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4 },
+  capsuleAdjustText: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  capsuleFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  readBriefingBtn: { height: 38, borderRadius: 12, backgroundColor: '#111827', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  readBriefingText: { fontSize: 13, color: 'white', fontWeight: '800' },
+  capsuleFooterText: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
 
-  blockCard: { marginTop: 12, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', padding: 14 },
-  blockHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  blockTitle: { fontSize: 17, fontWeight: '800', color: '#111827' },
-  blockDesc: { marginTop: 8, fontSize: 13, color: '#64748b', lineHeight: 19 },
-  actionRow: { marginTop: 12, flexDirection: 'row', gap: 8 },
-  primaryAction: { flex: 1, height: 38, borderRadius: 12, backgroundColor: '#4f46e5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  primaryActionText: { fontSize: 13, color: 'white', fontWeight: '700' },
-  secondaryAction: { flex: 1, height: 38, borderRadius: 12, backgroundColor: '#eef2ff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  secondaryActionText: { fontSize: 13, color: '#334155', fontWeight: '700' },
-  actionColumn: { marginTop: 10, gap: 8 },
-  linkRow: { height: 42, borderRadius: 12, borderWidth: 1, borderColor: '#dbeafe', backgroundColor: '#f8fbff', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  linkText: { flex: 1, fontSize: 13, color: '#1e293b', fontWeight: '600' },
+  topicCard: {
+    marginTop: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  topicCardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  topicCardHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  topicIconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
+  topicCardLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  topicCardTitle: { marginTop: 2, fontSize: 18, lineHeight: 24, color: '#0f172a', fontWeight: '800' },
+  topicCardTag: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
+  topicSummary: { marginTop: 12, fontSize: 14, lineHeight: 21, color: '#334155' },
+  topicQuietMeta: { marginTop: 10, fontSize: 12, lineHeight: 18, color: '#94a3b8' },
+  topicCardFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  topicPrimaryBtn: { minWidth: 108, height: 40, borderRadius: 12, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  topicPrimaryText: { fontSize: 14, color: 'white', fontWeight: '800' },
+  topicTextBtn: { paddingHorizontal: 4, paddingVertical: 6 },
+  topicTextBtnText: { fontSize: 13, color: '#64748b', fontWeight: '700' },
+
+  sheetMask: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.24)' },
+  adjustSheet: {
+    backgroundColor: '#fffdf8',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 28,
+    minHeight: 420,
+    maxHeight: '78%',
+  },
+  sheetHandle: { alignSelf: 'center', width: 46, height: 5, borderRadius: 999, backgroundColor: '#e7e5e4' },
+  sheetTitle: { marginTop: 14, fontSize: 22, color: '#111827', fontWeight: '900' },
+  sheetDesc: { marginTop: 6, fontSize: 13, lineHeight: 19, color: '#64748b' },
+  sheetSummary: { marginTop: 14, borderRadius: 18, backgroundColor: '#fff7e8', borderWidth: 1, borderColor: '#f2ddaf', paddingHorizontal: 14, paddingVertical: 14 },
+  sheetSummaryTitle: { fontSize: 16, color: '#111827', fontWeight: '800' },
+  sheetSummaryText: { marginTop: 8, fontSize: 14, lineHeight: 21, color: '#4b5563' },
+  sheetList: { paddingTop: 10, paddingBottom: 6, gap: 10 },
+  sheetNoteCard: {
+    borderRadius: 18,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#ebe5d7',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sheetNoteCardSelected: { borderColor: '#111827', backgroundColor: '#fffdf7' },
+  checkWrap: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: '#d6d3d1', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  checkWrapSelected: { backgroundColor: '#111827', borderColor: '#111827' },
+  sheetNoteBody: { flex: 1 },
+  sheetNoteTitle: { fontSize: 14, lineHeight: 20, color: '#111827', fontWeight: '700' },
+  sheetNoteMeta: { marginTop: 4, fontSize: 12, color: '#94a3b8' },
+  sheetActionRow: { marginTop: 14, flexDirection: 'row', gap: 10 },
+  sheetGhostBtn: { flex: 1, height: 46, borderRadius: 14, backgroundColor: '#f4f4f5', alignItems: 'center', justifyContent: 'center' },
+  sheetGhostText: { fontSize: 14, color: '#374151', fontWeight: '700' },
+  sheetPrimaryBtn: { flex: 1.1, height: 46, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
+  sheetPrimaryText: { fontSize: 14, color: 'white', fontWeight: '800' },
 
   modalMask: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(15,23,42,0.44)' },
   quickSheet: {
@@ -459,19 +799,35 @@ const styles = StyleSheet.create({
 
   quickBody: { marginTop: 10, backgroundColor: 'white', borderRadius: 16, flex: 1, minHeight: 0 },
   quickBodyContent: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 18 },
+  quickSection: { marginBottom: 14 },
   quickLabel: { fontSize: 18, color: '#d1d5db', fontWeight: '700' },
   quickSummary: { marginTop: 10, fontSize: 16, lineHeight: 26, color: '#1f2937' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  sectionTitle: { fontSize: 18, color: '#d1d5db', fontWeight: '700' },
+  sectionAction: { fontSize: 14, color: '#cbd5e1', fontWeight: '600' },
   bulletWrap: { marginTop: 12, gap: 8 },
   bulletText: { fontSize: 15, lineHeight: 23, color: '#111827', fontWeight: '500' },
+  questionRow: { paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  questionText: { flex: 1, fontSize: 15, lineHeight: 23, color: '#111827', fontWeight: '600' },
+  collectRow: {
+    marginTop: 8,
+    minHeight: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  collectText: { flex: 1, fontSize: 15, color: '#6b7280', fontWeight: '600' },
   quickMetaRow: { marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   quickMeta: { fontSize: 12, color: '#9ca3af' },
   settingText: { fontSize: 14, color: '#94a3b8' },
   helperText: { marginTop: 8, fontSize: 12, color: '#94a3b8' },
 
-  swipeHint: { position: 'absolute', top: 18, right: 16, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  swipeHintNext: { backgroundColor: '#dbeafe' },
-  swipeHintRead: { backgroundColor: '#dcfce7' },
-  swipeHintText: { fontSize: 12, fontWeight: '700', color: '#0f172a' },
   feedbackPill: { position: 'absolute', bottom: 20, alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: '#111827' },
   feedbackText: { fontSize: 12, color: 'white', fontWeight: '600' },
 });

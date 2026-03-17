@@ -7,10 +7,32 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { isDbConfigured, query, withTransaction } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 const WEB_PARSER_URL = process.env.WEB_PARSER_URL || 'http://localhost:3456';
+const DEFAULT_OWNER_ID = process.env.DEFAULT_OWNER_ID || 'local-dev-user';
+const DEFAULT_OWNER_NAME = process.env.DEFAULT_OWNER_NAME || 'EchoNote Local User';
+const NOTE_TYPES = new Set(['voice', 'text', 'ai', 'link', 'file', 'image']);
+
+const NOTE_SELECT = `
+  select
+    n.id,
+    n.title,
+    n.content,
+    n.type,
+    n.source_url,
+    n.snapshot_html,
+    n.created_at,
+    n.updated_at,
+    n.emoji,
+    n.todos_json as todos,
+    coalesce(array_agg(t.name order by t.name) filter (where t.name is not null), '{}') as tags
+  from notes n
+  left join note_tags nt on nt.note_id = n.id
+  left join tags t on t.id = nt.tag_id
+`;
 
 function normalizeXiaohongshuUrl(rawUrl = '') {
   const input = String(rawUrl).trim();
@@ -50,13 +72,321 @@ async function fetchFromParser(endpoint, payload) {
   return response.data;
 }
 
+function genNoteId() {
+  return `note_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function normalizeTags(input) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+  return input
+    .map((tag) => String(tag || '').trim())
+    .filter(Boolean)
+    .filter((tag) => {
+      if (seen.has(tag)) return false;
+      seen.add(tag);
+      return true;
+    });
+}
+
+function normalizeTodos(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((todo) => todo && typeof todo === 'object')
+    .map((todo, index) => ({
+      id: String(todo.id || `todo_${Date.now()}_${index}`),
+      text: String(todo.text || '').trim(),
+      priority: ['high', 'medium', 'low'].includes(todo.priority) ? todo.priority : 'medium',
+      completed: Boolean(todo.completed),
+      createdAt: todo.createdAt || new Date().toISOString(),
+    }))
+    .filter((todo) => todo.text);
+}
+
+function mapNoteRow(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    type: row.type,
+    sourceUrl: row.source_url || undefined,
+    snapshotHtml: row.snapshot_html || undefined,
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    todos: Array.isArray(row.todos) ? row.todos : [],
+    emoji: row.emoji || undefined,
+  };
+}
+
+function dbUnavailable(res) {
+  return res.status(503).json({
+    code: 'DATABASE_NOT_CONFIGURED',
+    message: 'Database is not configured. Set DATABASE_URL before using notes APIs.',
+  });
+}
+
+function validateNotePayload(input, { partial = false } = {}) {
+  const payload = input && typeof input === 'object' ? input : {};
+  const updates = {};
+
+  if (!partial || payload.title !== undefined) {
+    const title = String(payload.title || '').trim();
+    if (!title) return { error: 'title is required' };
+    updates.title = title;
+  }
+
+  if (!partial || payload.content !== undefined) {
+    updates.content = String(payload.content || '');
+  }
+
+  if (!partial || payload.type !== undefined) {
+    const type = String(payload.type || '').trim();
+    if (!NOTE_TYPES.has(type)) return { error: 'type is invalid' };
+    updates.type = type;
+  }
+
+  if (payload.sourceUrl !== undefined) updates.sourceUrl = payload.sourceUrl ? String(payload.sourceUrl) : null;
+  if (payload.snapshotHtml !== undefined) updates.snapshotHtml = payload.snapshotHtml ? String(payload.snapshotHtml) : null;
+  if (payload.emoji !== undefined) updates.emoji = payload.emoji ? String(payload.emoji) : null;
+  if (payload.tags !== undefined) updates.tags = normalizeTags(payload.tags);
+  if (payload.todos !== undefined) updates.todos = normalizeTodos(payload.todos);
+  if (payload.createdAt !== undefined) updates.createdAt = payload.createdAt;
+  if (payload.updatedAt !== undefined) updates.updatedAt = payload.updatedAt;
+  if (payload.id !== undefined) updates.id = String(payload.id || '').trim();
+
+  return { updates };
+}
+
+async function ensureDefaultOwner(client) {
+  await client.query(
+    `
+      insert into users (id, display_name)
+      values ($1, $2)
+      on conflict (id) do update set display_name = excluded.display_name
+    `,
+    [DEFAULT_OWNER_ID, DEFAULT_OWNER_NAME]
+  );
+}
+
+async function syncNoteTags(client, noteId, tags) {
+  await client.query('delete from note_tags where note_id = $1', [noteId]);
+
+  for (const tag of tags) {
+    const tagResult = await client.query(
+      `
+        insert into tags (owner_id, name)
+        values ($1, $2)
+        on conflict (owner_id, name) do update set name = excluded.name
+        returning id
+      `,
+      [DEFAULT_OWNER_ID, tag]
+    );
+
+    const tagId = tagResult.rows[0]?.id;
+    if (!tagId) continue;
+
+    await client.query(
+      `
+        insert into note_tags (note_id, tag_id)
+        values ($1, $2)
+        on conflict do nothing
+      `,
+      [noteId, tagId]
+    );
+  }
+}
+
+async function fetchNoteRow(executor, noteId) {
+  const result = await executor.query(
+    `
+      ${NOTE_SELECT}
+      where n.owner_id = $1 and n.id = $2
+      group by n.id
+    `,
+    [DEFAULT_OWNER_ID, noteId]
+  );
+  return result.rows[0] || null;
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    database: isDbConfigured() ? 'configured' : 'unconfigured',
+  });
+});
+
+app.get('/api/notes', async (req, res) => {
+  if (!isDbConfigured()) return dbUnavailable(res);
+
+  try {
+    const result = await query(
+      `
+        ${NOTE_SELECT}
+        where n.owner_id = $1
+        group by n.id
+        order by n.updated_at desc
+      `,
+      [DEFAULT_OWNER_ID]
+    );
+
+    res.json({ notes: result.rows.map(mapNoteRow) });
+  } catch (error) {
+    console.error('List notes error:', error.message);
+    res.status(500).json({ code: 'LIST_NOTES_ERROR', message: error.message });
+  }
+});
+
+app.get('/api/notes/:id', async (req, res) => {
+  if (!isDbConfigured()) return dbUnavailable(res);
+
+  try {
+    const row = await fetchNoteRow({ query }, req.params.id);
+    if (!row) {
+      return res.status(404).json({ code: 'NOTE_NOT_FOUND', message: 'Note not found' });
+    }
+    res.json({ note: mapNoteRow(row) });
+  } catch (error) {
+    console.error('Get note error:', error.message);
+    res.status(500).json({ code: 'GET_NOTE_ERROR', message: error.message });
+  }
+});
+
+app.post('/api/notes', async (req, res) => {
+  if (!isDbConfigured()) return dbUnavailable(res);
+
+  const { error, updates } = validateNotePayload(req.body, { partial: false });
+  if (error) {
+    return res.status(400).json({ code: 'INVALID_NOTE', message: error });
+  }
+
+  const noteId = updates.id || genNoteId();
+  const createdAt = updates.createdAt || new Date().toISOString();
+  const updatedAt = updates.updatedAt || createdAt;
+  const tags = updates.tags || [];
+  const todos = updates.todos || [];
+
+  try {
+    const row = await withTransaction(async (client) => {
+      await ensureDefaultOwner(client);
+      await client.query(
+        `
+          insert into notes (
+            id, owner_id, title, content, type, source_url, snapshot_html, emoji, todos_json, created_at, updated_at
+          ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::timestamptz, $11::timestamptz)
+        `,
+        [
+          noteId,
+          DEFAULT_OWNER_ID,
+          updates.title,
+          updates.content,
+          updates.type,
+          updates.sourceUrl,
+          updates.snapshotHtml,
+          updates.emoji || null,
+          JSON.stringify(todos),
+          createdAt,
+          updatedAt,
+        ]
+      );
+      await syncNoteTags(client, noteId, tags);
+      return fetchNoteRow(client, noteId);
+    });
+
+    res.status(201).json({ note: mapNoteRow(row) });
+  } catch (error) {
+    console.error('Create note error:', error.message);
+    res.status(500).json({ code: 'CREATE_NOTE_ERROR', message: error.message });
+  }
+});
+
+app.patch('/api/notes/:id', async (req, res) => {
+  if (!isDbConfigured()) return dbUnavailable(res);
+
+  const { error, updates } = validateNotePayload(req.body, { partial: true });
+  if (error) {
+    return res.status(400).json({ code: 'INVALID_NOTE', message: error });
+  }
+
+  try {
+    const row = await withTransaction(async (client) => {
+      await ensureDefaultOwner(client);
+      const existing = await fetchNoteRow(client, req.params.id);
+      if (!existing) return null;
+
+      const nextTitle = updates.title !== undefined ? updates.title : existing.title;
+      const nextContent = updates.content !== undefined ? updates.content : existing.content;
+      const nextType = updates.type !== undefined ? updates.type : existing.type;
+      const nextSourceUrl = updates.sourceUrl !== undefined ? updates.sourceUrl : existing.source_url;
+      const nextSnapshotHtml = updates.snapshotHtml !== undefined ? updates.snapshotHtml : existing.snapshot_html;
+      const nextEmoji = updates.emoji !== undefined ? updates.emoji : existing.emoji;
+      const nextTodos = updates.todos !== undefined ? updates.todos : existing.todos;
+      const nextUpdatedAt = updates.updatedAt || new Date().toISOString();
+
+      await client.query(
+        `
+          update notes
+          set title = $3,
+              content = $4,
+              type = $5,
+              source_url = $6,
+              snapshot_html = $7,
+              emoji = $8,
+              todos_json = $9::jsonb,
+              updated_at = $10::timestamptz
+          where owner_id = $1 and id = $2
+        `,
+        [
+          DEFAULT_OWNER_ID,
+          req.params.id,
+          nextTitle,
+          nextContent,
+          nextType,
+          nextSourceUrl,
+          nextSnapshotHtml,
+          nextEmoji,
+          JSON.stringify(nextTodos),
+          nextUpdatedAt,
+        ]
+      );
+
+      if (updates.tags !== undefined) {
+        await syncNoteTags(client, req.params.id, updates.tags);
+      }
+
+      return fetchNoteRow(client, req.params.id);
+    });
+
+    if (!row) {
+      return res.status(404).json({ code: 'NOTE_NOT_FOUND', message: 'Note not found' });
+    }
+
+    res.json({ note: mapNoteRow(row) });
+  } catch (error) {
+    console.error('Update note error:', error.message);
+    res.status(500).json({ code: 'UPDATE_NOTE_ERROR', message: error.message });
+  }
+});
+
+app.delete('/api/notes/:id', async (req, res) => {
+  if (!isDbConfigured()) return dbUnavailable(res);
+
+  try {
+    const result = await query('delete from notes where owner_id = $1 and id = $2', [DEFAULT_OWNER_ID, req.params.id]);
+    if (!result.rowCount) {
+      return res.status(404).json({ code: 'NOTE_NOT_FOUND', message: 'Note not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    console.error('Delete note error:', error.message);
+    res.status(500).json({ code: 'DELETE_NOTE_ERROR', message: error.message });
+  }
 });
 
 /**

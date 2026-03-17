@@ -1,5 +1,6 @@
 import Fuse from 'fuse.js';
 import { Note } from '../types';
+import { richTextToPlainText } from '../utils/richText';
 
 export interface SearchResult {
   item: Note;
@@ -33,7 +34,10 @@ class SearchEngine {
 
   init(notes: Note[]) {
     this.notes = notes;
-    this.fuse = new Fuse(notes, fuseOptions);
+    this.fuse = new Fuse(
+      notes.map((note) => ({ ...note, content: richTextToPlainText(note.content) })),
+      fuseOptions
+    );
   }
 
   search(query: string): SearchResult[] {

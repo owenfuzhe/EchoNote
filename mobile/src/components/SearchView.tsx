@@ -6,6 +6,7 @@ import { searchEngine } from '../services/search-engine';
 import StateBlock from './StateBlock';
 import { useNoteStore } from '../store/noteStore';
 import { AppView } from '../types';
+import { richTextToPreview } from '../utils/richText';
 
 interface Props { onNavigate: (view: AppView, noteId?: string) => void; onClose: () => void }
 
@@ -48,7 +49,7 @@ export default function SearchView({ onNavigate, onClose }: Props) {
             <View style={styles.fileIcon}><Search size={16} color="#9ca3af" /></View>
             <View style={{ flex: 1 }}>
               <Text numberOfLines={1} style={styles.itemTitle}>{item.title || '无标题'}</Text>
-              <Text numberOfLines={2} style={styles.itemDesc}>{item.content}</Text>
+              <Text numberOfLines={2} style={styles.itemDesc}>{richTextToPreview(item.content, 120)}</Text>
               <View style={styles.meta}><Clock3 size={12} color="#9ca3af" /><Text style={styles.metaText}>{new Date(item.updatedAt).toLocaleString()}</Text>{item.tags?.length ? <><Tag size={12} color="#9ca3af" /><Text style={styles.metaText}>{item.tags.slice(0, 2).join(', ')}</Text></> : null}</View>
             </View>
           </Pressable>

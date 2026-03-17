@@ -5,6 +5,7 @@ import { ArrowRight, Clipboard, FileText, Globe, Image as ImageIcon, Link2, Load
 interface CaptureMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreateBlankNote: () => void;
   onFileCapture: (type: 'pdf' | 'audio') => void;
   onImageCapture: () => void;
   onLinkCapture: (url?: string) => void;
@@ -13,7 +14,7 @@ interface CaptureMenuProps {
   isLoading?: boolean;
 }
 
-export default function CaptureMenu({ isOpen, onClose, onFileCapture, onImageCapture, onLinkCapture, onYoutubeCapture, onTextCapture, isLoading = false }: CaptureMenuProps) {
+export default function CaptureMenu({ isOpen, onClose, onCreateBlankNote, onFileCapture, onImageCapture, onLinkCapture, onYoutubeCapture, onTextCapture, isLoading = false }: CaptureMenuProps) {
   const [urlInput, setUrlInput] = useState('');
   const [activeMode, setActiveMode] = useState<'url' | 'youtube' | null>(null);
 
@@ -38,22 +39,28 @@ export default function CaptureMenu({ isOpen, onClose, onFileCapture, onImageCap
       <Pressable style={styles.mask} onPress={onClose} />
       <View style={styles.center} pointerEvents="box-none">
         <View style={styles.panel}>
-          <View style={styles.header}><Text style={styles.title}>生成音频概览时参考网站</Text><Pressable onPress={onClose} style={styles.close}><X size={18} color="#6b7280" /></Pressable></View>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>添加到 EchoNote</Text>
+              <Text style={styles.subtitle}>先记想法，再导入来源材料</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.close}><X size={18} color="#6b7280" /></Pressable>
+          </View>
           <View style={styles.inputWrap}>
             <Link2 size={18} color="#9ca3af" />
-            <TextInput value={urlInput} onChangeText={setUrlInput} placeholder={activeMode === 'youtube' ? '输入 YouTube 链接...' : '从网上查找来源...'} style={styles.input} autoCapitalize="none" />
+            <TextInput value={urlInput} onChangeText={setUrlInput} placeholder={activeMode === 'youtube' ? '输入 YouTube 链接...' : '输入网页链接作为来源...'} style={styles.input} autoCapitalize="none" />
             <Pressable onPress={submit} style={[styles.go, (!urlInput.trim() || isLoading) && { backgroundColor: '#e5e7eb' }]}>
               {isLoading ? <Loader size={16} color="#9ca3af" /> : <ArrowRight size={16} color={urlInput.trim() ? 'white' : '#9ca3af'} />}
             </Pressable>
           </View>
-          <Text style={styles.sep}>或上传文件</Text>
+          <Text style={styles.sep}>或直接新建 / 导入</Text>
           <View style={{ gap: 8 }}>
+            <Item id="text" label="笔记" desc="打开空白编辑页开始记录" icon={Clipboard} color="#f59e0b" onPress={onCreateBlankNote} />
             <Item id="pdf" label="PDF" desc="上传 PDF 文件" icon={FileText} color="#ef4444" onPress={() => onFileCapture('pdf')} />
             <Item id="audio" label="音频" desc="上传音频文件" icon={Music} color="#a855f7" onPress={() => onFileCapture('audio')} />
             <Item id="image" label="图片" desc="上传图片文件" icon={ImageIcon} color="#22c55e" onPress={onImageCapture} />
             <Item id="website" label="网站" desc="抓取网页内容" icon={Globe} color="#3b82f6" onPress={() => setActiveMode('url')} />
             <Item id="youtube" label="YouTube" desc="输入 YouTube 链接" icon={Youtube} color="#f43f5e" onPress={() => setActiveMode('youtube')} />
-            <Item id="text" label="复制的文字" desc="粘贴文字内容" icon={Clipboard} color="#f59e0b" onPress={() => onTextCapture('请手动粘贴文字内容')} />
           </View>
         </View>
       </View>
@@ -67,6 +74,7 @@ const styles = StyleSheet.create({
   panel: { width: '100%', maxWidth: 420, backgroundColor: 'white', borderRadius: 24, padding: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   title: { fontSize: 16, fontWeight: '700', color: '#111827', maxWidth: '88%' },
+  subtitle: { marginTop: 4, fontSize: 12, color: '#64748b' },
   close: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f3f4f6' },
   inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8 },
   input: { flex: 1, fontSize: 14, color: '#111827' },
