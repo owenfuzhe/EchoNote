@@ -22,6 +22,49 @@ const STORAGE_KEY = 'crispynote_notes_mobile';
 const genId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const NOTE_TYPES = new Set<Note['type']>(['voice', 'text', 'ai', 'link', 'file', 'image']);
 const sortNotes = (notes: Note[]) => [...notes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+const SAMPLE_ARTICLE_ID = 'sample-article-echonote';
+
+function buildSampleArticle(): Note {
+  const createdAt = '2026-03-18T09:20:00.000Z';
+  const updatedAt = '2026-03-19T08:40:00.000Z';
+  return {
+    id: SAMPLE_ARTICLE_ID,
+    title: 'F1上海站热度飙升，京东将国内电商经验复制到欧洲',
+    type: 'link',
+    sourceUrl: 'https://example.com/echonote/sample-article',
+    snapshotHtml: `
+      <article style="font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;padding:24px;line-height:1.8;color:#1f2937;background:#fffdf8;">
+        <h1 style="font-size:30px;line-height:1.2;margin:0 0 12px;color:#111827;">F1上海站热度飙升，京东将国内电商经验复制到欧洲</h1>
+        <p style="color:#6b7280;margin:0 0 20px;">示例文章 · 用于测试 EchoNote 的文章阅读、摘录与 AI 提问体验</p>
+        <p>今年 F1 上海站重新成为社交媒体上的高频话题，不只是因为赛事本身，更因为它带动了一轮围绕“线下事件如何放大消费热度”的讨论。</p>
+        <p>与此同时，京东在欧洲市场尝试复制国内电商的供应链、履约与品类打法，也让“成熟经验如何跨市场迁移”再次成为商业观察的重点。</p>
+        <p>如果把这两条线索放在一起看，会发现一个共同点：真正能形成持续影响力的，不是单个热点，而是能否把热点沉淀成长期运营能力。</p>
+      </article>
+    `.trim(),
+    content: `
+      今年的 F1 上海站重新回到公众视野，不只是因为赛事本身的竞技看点，更因为它再次验证了一件事：高密度线下事件，依然是放大消费情绪与品牌声量的绝佳入口。
+
+      从社交平台的讨论可以看到，用户关注的焦点已经不再只是“谁赢了比赛”，而是围绕票务、周边、旅行、酒店和品牌联名形成了一整条消费链路。赛事成为了引发城市消费、内容传播和品牌合作的超级触点。
+
+      与此同时，京东在欧洲市场推进本地零售与物流能力建设，也透露出另一个值得追踪的信号：当中国互联网平台开始把国内已经验证过的供应链和履约经验向海外迁移时，竞争重点就不再只是补贴，而是效率、信任与本地化运营的综合能力。
+
+      把这两条信息放在一起看，一个更有价值的问题会出现：今天真正决定增长上限的，究竟是抓住一次热点，还是能否把热点沉淀成可重复的系统能力？
+
+      对 EchoNote 来说，这类文章很适合用来测试“阅读、摘录、提问、转笔记”这条链路，因为它既有明确事实，也天然会引出进一步思考。
+    `.trim(),
+    tags: ['示例文章', '商业观察', '测试数据'],
+    createdAt,
+    updatedAt,
+  };
+}
+
+function ensureSampleArticle(notes: Note[]) {
+  const hasArticle = notes.some((note) => note.type === 'link' || note.type === 'file' || note.type === 'image');
+  if (hasArticle) return notes;
+  const sample = buildSampleArticle();
+  const deduped = notes.filter((note) => note.id !== SAMPLE_ARTICLE_ID);
+  return sortNotes([sample, ...deduped]);
+}
 
 function ensureString(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback;
@@ -74,14 +117,14 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       try {
-        const remoteNotes = sortNotes(await listNotesRemote());
+        const remoteNotes = ensureSampleArticle(sortNotes(await listNotesRemote()));
         await writeLocalNotes(remoteNotes);
         set({ notes: remoteNotes, isLoading: false, error: null });
         return;
       } catch (remoteError: any) {
         const localNotes = await readLocalNotes();
         if (localNotes.length > 0) {
-          const normalized = sortNotes(localNotes);
+          const normalized = ensureSampleArticle(sortNotes(localNotes));
           await writeLocalNotes(normalized);
           set({
             notes: normalized,
@@ -92,7 +135,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         }
       }
 
-      const demoNotes = sortNotes(MOCK_NOTES_200);
+      const demoNotes = ensureSampleArticle(sortNotes(MOCK_NOTES_200));
       await writeLocalNotes(demoNotes);
       set({
         notes: demoNotes,

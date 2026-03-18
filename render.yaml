@@ -1,0 +1,39 @@
+services:
+  - type: pserv
+    name: echonote-parser
+    runtime: node
+    rootDir: packages/web-parser
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+
+  - type: web
+    name: echonote-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: WEB_PARSER_HOSTPORT
+        fromService:
+          type: pserv
+          name: echonote-parser
+          property: hostport
+      - key: BAILIAN_API_KEY
+        sync: false
+      - key: BAILIAN_MODEL
+        value: qwen-max
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: DEFAULT_OWNER_ID
+        value: render-bootstrap-user
+      - key: DEFAULT_OWNER_NAME
+        value: EchoNote MVP User

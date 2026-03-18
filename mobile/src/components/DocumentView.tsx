@@ -3,8 +3,11 @@ import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView,
 import { WebView } from 'react-native-webview';
 import { RichText, useBridgeState, useEditorBridge, useEditorContent } from '@10play/tentap-editor';
 import {
+  Check,
   CheckSquare,
   ChevronLeft,
+  ChevronRight,
+  ChevronDown,
   Ellipsis,
   Heading1,
   History,
@@ -157,6 +160,7 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   const [showContextPanel, setShowContextPanel] = useState(false);
   const [showExportContext, setShowExportContext] = useState(false);
   const [activeTab, setActiveTab] = useState<DocumentTab>('article');
+  const [showArticleTabPicker, setShowArticleTabPicker] = useState(false);
 
   const note = noteId ? getNoteById(noteId) : undefined;
   const isDraft = !note && !!draftNote;
@@ -165,16 +169,14 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   const isArticle = !isDraft && documentKind === 'article';
   const hasSource = note?.type === 'link' && !!note.sourceUrl;
   const hasSnapshot = note?.type === 'link' && !!note.snapshotHtml?.trim();
-  const editorDate = useMemo(
-    () => new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' }).format(new Date()),
-    []
-  );
-
   const normalizedPersistedContent = useMemo(
     () => normalizeContentForEditor(note?.content ?? draftNote?.content ?? ''),
     [draftNote?.content, note?.content]
   );
   const plainContent = useMemo(() => richTextToPlainText(content), [content]);
+  const articleBodyText = useMemo(() => {
+    return richTextToPlainText(content || note?.content || '').trim() || '暂无正文内容';
+  }, [content, note?.content]);
   const syncState = useMemo(() => {
     if (isSaving || isCreatingDraft) {
       return { label: '保存中', tone: 'saving' as const };
@@ -187,6 +189,21 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   const headerPillLabel = isArticle ? '来源文章' : `私人笔记 · ${syncState.label}`;
   const contextTitle = title.trim() || note?.title || '未命名笔记';
   const contextBody = plainContent.trim() || richTextToPlainText(note?.content || '');
+  const articleTabOptions = useMemo(() => {
+    const options: Array<{ key: DocumentTab; label: string }> = [{ key: 'article', label: '文章' }];
+    if (hasSource) options.push({ key: 'source', label: '原网页' });
+    if (hasSnapshot) options.push({ key: 'snapshot', label: '快照' });
+    return options;
+  }, [hasSnapshot, hasSource]);
+  const activeArticleTabLabel = useMemo(() => {
+    return articleTabOptions.find((option) => option.key === activeTab)?.label || '文章';
+  }, [activeTab, articleTabOptions]);
+  const noteUpdatedLabel = useMemo(() => {
+    if (!note?.updatedAt) return '刚刚';
+    return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(
+      new Date(note.updatedAt)
+    );
+  }, [note?.updatedAt]);
 
   useEffect(() => {
     const nextTitle = note?.title ?? draftNote?.title ?? '';
@@ -198,6 +215,7 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
     setIsCreatingDraft(false);
     setActiveTab('article');
     setShowMoreMenu(false);
+    setShowArticleTabPicker(false);
   }, [draftNote?.content, draftNote?.title, note?.content, note?.id, note?.title]);
 
   useEffect(() => {
@@ -348,17 +366,26 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
 
   const openAIChat = () => {
     setShowMoreMenu(false);
+    setShowArticleTabPicker(false);
     setShowAIChat(true);
   };
 
   const openContextPanel = () => {
     setShowMoreMenu(false);
+    setShowArticleTabPicker(false);
     setShowContextPanel(true);
   };
 
   const openExportContext = () => {
     setShowMoreMenu(false);
+    setShowArticleTabPicker(false);
     setShowExportContext(true);
+  };
+
+  const selectArticleTab = (tab: DocumentTab) => {
+    setActiveTab(tab);
+    setShowArticleTabPicker(false);
+    setShowMoreMenu(false);
   };
 
   const dismissEditorKeyboard = () => {
@@ -400,24 +427,40 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   }
 
   return (
-    <View style={styles.root}>
-      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' && (isArticle || showAIChat) ? 'padding' : undefined}>
-        <View style={styles.header}>
+    <View style={[styles.root, isArticle && styles.articleRoot]}>
+      <KeyboardAvoidingView
+        style={[styles.root, isArticle && styles.articleRoot]}
+        behavior={Platform.OS === 'ios' && (isArticle || showAIChat) ? 'padding' : undefined}
+      >
+        <View style={[styles.header, isArticle && styles.articleHeader]}>
           <View style={styles.headerSide}>
             <Pressable onPress={handleBack} style={styles.iconBtn}>
               <ChevronLeft size={24} color="#111827" />
             </Pressable>
           </View>
           <View style={styles.headerCenter}>
-            <View
-              style={[
-                styles.headerPill,
-                syncState.tone === 'local' && styles.headerPillLocal,
-                syncState.tone === 'saving' && styles.headerPillSaving,
-              ]}
-            >
-              <Text style={styles.headerPillText}>{headerPillLabel}</Text>
-            </View>
+            {isArticle ? (
+              <Pressable
+                onPress={() => {
+                  setShowMoreMenu(false);
+                  setShowArticleTabPicker((current) => !current);
+                }}
+                style={[styles.articleTabTrigger, showArticleTabPicker && styles.articleTabTriggerActive]}
+              >
+                <Text style={styles.articleTabTriggerText}>{activeArticleTabLabel}</Text>
+                <ChevronDown size={14} color="#94a3b8" />
+              </Pressable>
+            ) : (
+              <View
+                style={[
+                  styles.headerPill,
+                  syncState.tone === 'local' && styles.headerPillLocal,
+                  syncState.tone === 'saving' && styles.headerPillSaving,
+                ]}
+              >
+                <Text style={styles.headerPillText}>{headerPillLabel}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.headerActions}>
             {!isArticle && Platform.OS !== 'ios' && isKeyboardVisible && (
@@ -425,46 +468,72 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
                 <Text style={styles.doneBtnText}>完成</Text>
               </Pressable>
             )}
-            <Pressable onPress={openExportContext} style={styles.iconBtn}>
-              <Share size={20} color="#111827" />
-            </Pressable>
-            <Pressable onPress={() => setShowMoreMenu((current) => !current)} style={styles.iconBtn}>
+            <Pressable
+              onPress={() => {
+                setShowArticleTabPicker(false);
+                setShowMoreMenu((current) => !current);
+              }}
+              style={styles.iconBtn}
+            >
               <Ellipsis size={20} color="#111827" />
             </Pressable>
           </View>
         </View>
 
-        <View style={styles.sheet}>
+        {isArticle && showArticleTabPicker && (
+          <View style={styles.articleTabOverlay} pointerEvents="box-none">
+            <Pressable style={styles.articleTabOverlayMask} onPress={() => setShowArticleTabPicker(false)} />
+            <View style={styles.articleTabPicker}>
+              {articleTabOptions.map((option, index) => {
+                const isActive = option.key === activeTab;
+                return (
+                  <Pressable
+                    key={option.key}
+                    onPress={() => selectArticleTab(option.key)}
+                    style={[styles.articleTabOption, index > 0 && styles.articleTabOptionBorder]}
+                  >
+                    <View style={styles.articleTabOptionRow}>
+                      <View style={styles.articleTabOptionIconWrap}>
+                        {isActive ? <Check size={18} color="#111827" /> : null}
+                      </View>
+                      <Text style={[styles.articleTabOptionText, isActive && styles.articleTabOptionTextActive]}>
+                        {option.label}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        <View style={[styles.sheet, isArticle ? styles.articleSheet : styles.noteSheet]}>
           {isArticle ? (
-            <View style={styles.titleBlock}>
-              <Text style={styles.articleEyebrow}>来源文章</Text>
+            <View style={styles.articleHero}>
               <Text style={styles.articleTitle}>{note?.title || '未命名文章'}</Text>
-              <Text style={styles.articleMeta}>{note?.sourceUrl || '已保存到 EchoNote'}</Text>
             </View>
           ) : (
-            <>
-              <View style={styles.noteHero}>
-                <Text style={styles.noteMetaLine}>{isDraft ? '空白笔记' : `上次更新 ${editorDate}`}</Text>
-                <TextInput
-                  value={title}
-                  onChangeText={setTitle}
-                  style={styles.titleInput}
-                  placeholder="无标题"
-                  placeholderTextColor="#94a3b8"
-                  returnKeyType="done"
-                  blurOnSubmit
-                  onSubmitEditing={dismissEditorKeyboard}
-                  onFocus={() => {
-                    setShowMoreMenu(false);
-                  }}
-                />
-              </View>
-            </>
+            <View style={styles.noteHero}>
+              <Text style={styles.noteMetaLine}>{isDraft ? '空白笔记' : `私人笔记 · 上次更新 ${noteUpdatedLabel}`}</Text>
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                style={styles.titleInput}
+                placeholder="无标题"
+                placeholderTextColor="#94a3b8"
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={dismissEditorKeyboard}
+                onFocus={() => {
+                  setShowMoreMenu(false);
+                }}
+              />
+            </View>
           )}
 
-          {(hasSource || hasSnapshot) && (
+          {!isArticle && (hasSource || hasSnapshot) && (
             <View style={styles.tabs}>
-              <Tab active={activeTab === 'article'} label="文章" onPress={() => setActiveTab('article')} />
+              <Tab active={activeTab === 'article'} label="正文" onPress={() => setActiveTab('article')} />
               {hasSource && <Tab active={activeTab === 'source'} label="源网页" onPress={() => setActiveTab('source')} />}
               {hasSnapshot && <Tab active={activeTab === 'snapshot'} label="快照" onPress={() => setActiveTab('snapshot')} />}
             </View>
@@ -474,21 +543,12 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
             isArticle ? (
               <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 132 }}
+                contentContainerStyle={styles.articleScrollContent}
                 keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                 keyboardShouldPersistTaps="handled"
                 onScrollBeginDrag={() => Keyboard.dismiss()}
               >
-                <View style={styles.articleCard}>
-                  <Text style={styles.articleCardTitle}>文章默认只读</Text>
-                  <Text style={styles.articleCardDesc}>
-                    更适合阅读、标注、提问。若你想继续整理和改写，建议先转成自己的笔记。
-                  </Text>
-                  <Pressable onPress={createEditableNoteFromArticle} style={styles.articleCta}>
-                    <Text style={styles.articleCtaText}>转为笔记继续编辑</Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.articleBody}>{richTextToPlainText(content || note?.content || '') || '暂无正文内容'}</Text>
+                <Text style={styles.articleBody}>{articleBodyText}</Text>
               </ScrollView>
             ) : (
               <NoteBodyEditor
@@ -562,6 +622,13 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
         {showMoreMenu && (
           <Pressable style={styles.menuMask} onPress={() => setShowMoreMenu(false)}>
             <View style={styles.menuCard}>
+              {isArticle && (
+                <MenuAction
+                  label="摘录为笔记"
+                  icon={<SquarePen size={16} color="#111827" />}
+                  onPress={createEditableNoteFromArticle}
+                />
+              )}
               {!isArticle && (
                 <MenuAction
                   label={isExtractingTodos ? '提取待办中...' : '提取待办'}
@@ -570,6 +637,7 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
                   disabled={isExtractingTodos}
                 />
               )}
+              <MenuAction label="分享" icon={<Share size={16} color="#111827" />} onPress={openExportContext} />
               <MenuAction label="AI 助手" icon={<Sparkles size={16} color="#111827" />} onPress={openAIChat} />
               <MenuAction label="上下文溯源" icon={<History size={16} color="#111827" />} onPress={openContextPanel} />
             </View>
@@ -1098,6 +1166,7 @@ function SecondaryAction({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f8fafc' },
+  articleRoot: { backgroundColor: '#ffffff' },
   header: {
     paddingTop: 12,
     paddingHorizontal: 14,
@@ -1108,24 +1177,88 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eef2f7',
   },
+  articleHeader: {
+    backgroundColor: '#ffffff',
+    borderBottomColor: '#f1f3f5',
+  },
   headerSide: { width: 44, alignItems: 'flex-start' },
   headerCenter: { flex: 1, alignItems: 'center' },
   iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  headerActions: { minWidth: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
+  headerActions: { minWidth: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   doneBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#eef2ff', marginRight: 2 },
   doneBtnText: { fontSize: 12, fontWeight: '700', color: '#4f46e5' },
   headerPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e7ecf3' },
   headerPillLocal: { backgroundColor: '#fff7ed', borderColor: '#fed7aa' },
   headerPillSaving: { backgroundColor: '#eef2ff', borderColor: '#c7d2fe' },
   headerPillText: { fontSize: 13, fontWeight: '600', color: '#111827' },
-  sheet: { flex: 1, backgroundColor: '#ffffff', paddingHorizontal: 22, paddingTop: 20 },
-  noteHero: { marginBottom: 10 },
+  articleTabTrigger: {
+    minHeight: 34,
+    borderRadius: 17,
+    paddingHorizontal: 12,
+    backgroundColor: '#f5f6f8',
+    borderWidth: 1,
+    borderColor: '#edf0f4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  articleTabTriggerActive: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e6eaef',
+  },
+  articleTabTriggerText: { fontSize: 14, lineHeight: 19, color: '#475569', fontWeight: '500' },
+  articleTabOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+  articleTabOverlayMask: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  articleTabPicker: {
+    position: 'absolute',
+    top: 66,
+    alignSelf: 'center',
+    width: 196,
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#edf0f3',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  articleTabOption: {
+    minHeight: 58,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  articleTabOptionBorder: {
+    borderTopWidth: 1,
+    borderTopColor: '#f2f4f7',
+  },
+  articleTabOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  articleTabOptionIconWrap: {
+    width: 16,
+    alignItems: 'center',
+  },
+  articleTabOptionText: { fontSize: 14, lineHeight: 20, color: '#111827', fontWeight: '500' },
+  articleTabOptionTextActive: { fontWeight: '600' },
+  sheet: { flex: 1, paddingHorizontal: 22, paddingTop: 20 },
+  articleSheet: { backgroundColor: '#ffffff' },
+  noteSheet: { backgroundColor: '#ffffff' },
+  noteHero: { marginBottom: 12 },
   noteMetaLine: { fontSize: 13, lineHeight: 18, color: '#94a3b8', marginBottom: 10 },
-  titleInput: { fontSize: 38, lineHeight: 44, fontWeight: '700', color: '#111827', marginBottom: 10, letterSpacing: -1 },
-  titleBlock: { marginBottom: 14 },
-  articleEyebrow: { fontSize: 12, color: '#64748b', letterSpacing: 0.4, textTransform: 'uppercase' },
-  articleTitle: { fontSize: 28, lineHeight: 34, fontWeight: '700', color: '#111827', marginTop: 6 },
-  articleMeta: { fontSize: 12, lineHeight: 18, color: '#64748b', marginTop: 6 },
+  titleInput: { fontSize: 36, lineHeight: 42, fontWeight: '700', color: '#111827', marginBottom: 10, letterSpacing: -1 },
+  articleHero: { marginBottom: 22 },
+  articleTitle: { fontSize: 33, lineHeight: 39, fontWeight: '700', color: '#111827', letterSpacing: -0.9 },
   noteToolbar: { flexDirection: 'row', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
   toolbarChip: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   toolbarChipActive: { backgroundColor: '#eef2ff', borderColor: '#c7d2fe' },
@@ -1155,12 +1288,8 @@ const styles = StyleSheet.create({
     borderColor: '#e7ecf3',
     backgroundColor: '#f8fafc',
   },
-  articleCard: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 18, padding: 14, marginBottom: 16 },
-  articleCardTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  articleCardDesc: { fontSize: 13, lineHeight: 20, color: '#475569', marginTop: 6 },
-  articleCta: { alignSelf: 'flex-start', marginTop: 12, backgroundColor: '#111827', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
-  articleCtaText: { fontSize: 12, fontWeight: '700', color: 'white' },
-  articleBody: { fontSize: 17, lineHeight: 30, color: '#1f2937', paddingBottom: 12 },
+  articleScrollContent: { paddingBottom: 148 },
+  articleBody: { fontSize: 18, lineHeight: 32, color: '#1f2937', paddingBottom: 4, letterSpacing: -0.12 },
   urlText: { color: '#6b7280', fontSize: 12, marginBottom: 6 },
   webview: { flex: 1, borderRadius: 12, overflow: 'hidden' },
   chatPanel: { position: 'absolute', left: 14, right: 14, bottom: 96, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb' },

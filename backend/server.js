@@ -11,9 +11,13 @@ const { isDbConfigured, query, withTransaction } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
-const WEB_PARSER_URL = process.env.WEB_PARSER_URL || 'http://localhost:3456';
+const WEB_PARSER_HOSTPORT = process.env.WEB_PARSER_HOSTPORT || '';
+const WEB_PARSER_URL = process.env.WEB_PARSER_URL || (WEB_PARSER_HOSTPORT ? `http://${WEB_PARSER_HOSTPORT}` : 'http://localhost:3456');
 const DEFAULT_OWNER_ID = process.env.DEFAULT_OWNER_ID || 'local-dev-user';
 const DEFAULT_OWNER_NAME = process.env.DEFAULT_OWNER_NAME || 'EchoNote Local User';
+const BAILIAN_API_KEY = process.env.BAILIAN_API_KEY || process.env.DASHSCOPE_API_KEY || '';
+const BAILIAN_BASE_URL = process.env.BAILIAN_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1';
+const BAILIAN_MODEL = process.env.BAILIAN_MODEL || 'qwen-max';
 const NOTE_TYPES = new Set(['voice', 'text', 'ai', 'link', 'file', 'image']);
 
 const NOTE_SELECT = `
@@ -126,6 +130,13 @@ function dbUnavailable(res) {
   });
 }
 
+function aiUnavailable(res) {
+  return res.status(503).json({
+    code: 'AI_NOT_CONFIGURED',
+    message: 'AI service is not configured. Set BAILIAN_API_KEY before using AI APIs.',
+  });
+}
+
 function validateNotePayload(input, { partial = false } = {}) {
   const payload = input && typeof input === 'object' ? input : {};
   const updates = {};
@@ -219,7 +230,75 @@ app.get('/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     database: isDbConfigured() ? 'configured' : 'unconfigured',
+    ai: BAILIAN_API_KEY ? 'configured' : 'unconfigured',
+    parser: WEB_PARSER_URL,
   });
+});
+
+app.post('/api/ai/chat', async (req, res) => {
+  if (!BAILIAN_API_KEY) return aiUnavailable(res);
+
+  const payload = req.body && typeof req.body === 'object' ? req.body : {};
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
+
+  if (!messages.length) {
+    return res.status(400).json({
+      code: 'MISSING_MESSAGES',
+      message: 'messages is required',
+    });
+  }
+
+  const requestMessages =
+    options.systemPrompt && !messages.some((message) => message?.role === 'system')
+      ? [{ role: 'system', content: String(options.systemPrompt) }, ...messages]
+      : messages;
+
+  try {
+    const response = await axios.post(
+      `${BAILIAN_BASE_URL}/services/aigc/text-generation/generation`,
+      {
+        model: options.model || BAILIAN_MODEL,
+        input: { messages: requestMessages },
+        parameters: {
+          temperature: options.temperature ?? 0.7,
+          max_tokens: options.maxTokens ?? 1024,
+          result_format: 'message',
+        },
+      },
+      {
+        timeout: 45000,
+        headers: {
+          Authorization: `Bearer ${BAILIAN_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const data = response.data || {};
+    const output = data.output || {};
+    const content = output?.choices?.[0]?.message?.content || output?.choices?.[0]?.text || output?.text || '';
+
+    return res.json({
+      content: String(content).trim(),
+      model: output?.model || options.model || BAILIAN_MODEL,
+      totalTokens: data?.usage?.total_tokens,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    const status = error.response?.status || 500;
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.code ||
+      error.message ||
+      'AI proxy request failed';
+
+    console.error('AI chat proxy error:', message);
+    return res.status(status).json({
+      code: 'AI_PROXY_ERROR',
+      message,
+    });
+  }
 });
 
 app.get('/api/notes', async (req, res) => {

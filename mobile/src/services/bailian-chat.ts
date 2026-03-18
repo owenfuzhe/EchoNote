@@ -2,6 +2,7 @@ import { ChatMessage } from '../types';
 
 const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/api/v1';
 const DEFAULT_MODEL = 'qwen-max';
+const AI_PROXY_URL = process.env.EXPO_PUBLIC_BACKEND_URL ? `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/ai/chat` : '';
 
 export interface ChatOptions {
   model?: string;
@@ -24,13 +25,48 @@ export class BailianChatError extends Error {
   }
 }
 
-export async function chat(messages: ChatMessage[], options: ChatOptions = {}): Promise<ChatResponse> {
+async function chatViaBackend(messages: ChatMessage[], options: ChatOptions): Promise<ChatResponse> {
+  if (!AI_PROXY_URL) {
+    throw new BailianChatError('缺少 EXPO_PUBLIC_BACKEND_URL', 'MISSING_BACKEND_URL');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(AI_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages,
+        options,
+      }),
+    });
+  } catch (e: any) {
+    throw new BailianChatError(e?.message || 'AI 代理网络错误', 'NETWORK_ERROR');
+  }
+
+  const raw = await response.text();
+  let data: any = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = { message: raw };
+  }
+
+  if (!response.ok) {
+    throw new BailianChatError(data?.message || `HTTP ${response.status}`, data?.code || 'API_ERROR', response.status);
+  }
+
+  return {
+    content: String(data?.content || '').trim(),
+    model: data?.model || options.model || DEFAULT_MODEL,
+    totalTokens: data?.totalTokens,
+    timestamp: data?.timestamp || Date.now(),
+  };
+}
+
+async function chatDirect(messages: ChatMessage[], options: ChatOptions, requestMessages: ChatMessage[]): Promise<ChatResponse> {
   const apiKey = process.env.EXPO_PUBLIC_BAILIAN_API_KEY;
   if (!apiKey) throw new BailianChatError('缺少 EXPO_PUBLIC_BAILIAN_API_KEY', 'MISSING_API_KEY');
-
-  const requestMessages = options.systemPrompt && !messages.some((m) => m.role === 'system')
-    ? [{ role: 'system', content: options.systemPrompt } as ChatMessage, ...messages]
-    : messages;
 
   const body = {
     model: options.model || DEFAULT_MODEL,
@@ -67,4 +103,20 @@ export async function chat(messages: ChatMessage[], options: ChatOptions = {}): 
     totalTokens: data?.usage?.total_tokens,
     timestamp: Date.now(),
   };
+}
+
+export async function chat(messages: ChatMessage[], options: ChatOptions = {}): Promise<ChatResponse> {
+  const requestMessages = options.systemPrompt && !messages.some((m) => m.role === 'system')
+    ? [{ role: 'system', content: options.systemPrompt } as ChatMessage, ...messages]
+    : messages;
+
+  if (AI_PROXY_URL) {
+    try {
+      return await chatViaBackend(messages, options);
+    } catch (error: any) {
+      if (!process.env.EXPO_PUBLIC_BAILIAN_API_KEY) throw error;
+    }
+  }
+
+  return chatDirect(messages, options, requestMessages);
 }
