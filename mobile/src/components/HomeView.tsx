@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BookOpen, Check, ChevronRight, Compass, FileText, Sparkles } from 'lucide-react-native';
+import { Check, ChevronRight, FileText, Plus, Settings2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import {
   NativeViewGestureHandler,
@@ -70,6 +70,9 @@ export default function HomeView({
   const translateX = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
   const cardScale = useRef(new Animated.Value(1)).current;
+  const topicTranslateX = useRef(new Animated.Value(0)).current;
+  const topicScale = useRef(new Animated.Value(1)).current;
+  const topicPanRef = useRef<any>(null);
   const rightRevealProgress = translateX.interpolate({
     inputRange: [0, 110],
     outputRange: [0, 1],
@@ -86,6 +89,20 @@ export default function HomeView({
     extrapolate: 'clamp',
   });
   const currentQuickNote = recent[quickIndex];
+  const currentTopicIndex = useMemo(() => {
+    if (!topicOptions.length) return 0;
+    const found = topicOptions.findIndex((option) => option.label === exploreTopic);
+    return found >= 0 ? found : 0;
+  }, [exploreTopic, topicOptions]);
+  const topicTheme = useMemo(() => {
+    const palettes = [
+      { bg: '#eef2f7', border: '#dde4ec', accentA: '#dce8f5', accentB: '#e7f0f7', buttonBorder: '#d4dce4', title: '#1c2430', meta: '#73808c' },
+      { bg: '#f0eef8', border: '#e0dff0', accentA: '#dcd9f6', accentB: '#f0eefb', buttonBorder: '#d8d6ee', title: '#1c2232', meta: '#7b7a8d' },
+      { bg: '#eef5f2', border: '#dde8e0', accentA: '#dbece4', accentB: '#eef7f2', buttonBorder: '#d5e3da', title: '#1b2a24', meta: '#74847c' },
+      { bg: '#f4f1ec', border: '#e5ddd4', accentA: '#eadfce', accentB: '#f7f2ea', buttonBorder: '#e0d6ca', title: '#2b2420', meta: '#85796f' },
+    ];
+    return palettes[currentTopicIndex % palettes.length];
+  }, [currentTopicIndex]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -160,6 +177,27 @@ export default function HomeView({
     return ['升级 Pro+AI 会员以查看'];
   };
 
+  const briefingHook = 'F1上海站热度飙升，京东将国内电商经验复制到欧洲';
+
+  const briefingMeta = useMemo(() => {
+    return `${briefing.notes.length}篇 · ${Math.max(briefing.notes.length + 1, 3)}分钟`;
+  }, [briefing.notes.length]);
+
+  const topicMeta = useMemo(() => {
+    const articleCount = Math.max(topicWorkspace.noteCount, 1);
+    const minutes = Math.max(articleCount + 1, 3);
+    return `${articleCount}篇 · ${minutes}分钟`;
+  }, [topicWorkspace.noteCount]);
+  const topicDotCount = Math.min(Math.max(topicOptions.length, 1), 4);
+  const topicActiveDot = currentTopicIndex % topicDotCount;
+
+  const topicHint = useMemo(() => {
+    if (!topicWorkspace.noteCount) return '先补 1 篇材料开始追踪';
+    if (topicWorkspace.freshCount > 0) return `${Math.max(topicWorkspace.freshCount, 1)} 条新线索待推进`;
+    if (topicWorkspace.relationCount > 0) return '先把线索收成一个判断';
+    return `${topicWorkspace.noteCount} 篇材料可继续收束`;
+  }, [topicWorkspace.freshCount, topicWorkspace.noteCount, topicWorkspace.relationCount]);
+
   const shouldCaptureHorizontalSwipe = (dx: number, dy: number, vx: number, vy: number) => {
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
@@ -226,6 +264,83 @@ export default function HomeView({
     cardScale.setValue(1);
     setSwipeHint(null);
     resetBodyNudge();
+  };
+
+  const animateTopicBack = () => {
+    Animated.parallel([
+      Animated.spring(topicTranslateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 14,
+        stiffness: 170,
+        mass: 0.8,
+      }),
+      Animated.spring(topicScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 14,
+        stiffness: 170,
+        mass: 0.8,
+      }),
+    ]).start();
+  };
+
+  const switchTopic = (direction: 'next' | 'prev') => {
+    if (!topicOptions.length) return;
+    const delta = direction === 'next' ? 1 : -1;
+    const nextIndex = (currentTopicIndex + delta + topicOptions.length) % topicOptions.length;
+    const nextTopic = topicOptions[nextIndex];
+    if (!nextTopic) return;
+    if (nextTopic.label !== exploreTopic) {
+      onSelectExploreTopic(nextTopic.label);
+    }
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleTopicPanMove = (dx: number) => {
+    const dampedX = dx * 0.45;
+    topicTranslateX.setValue(dampedX);
+    const pullScale = Math.max(0.985, 1 - Math.abs(dampedX) / 2200);
+    topicScale.setValue(pullScale);
+  };
+
+  const handleTopicPanRelease = (dx: number, dy: number, vx: number, vy: number) => {
+    const horizontalIntent = shouldCaptureHorizontalSwipe(dx, dy, vx, vy);
+    const projectedX = dx + vx * 100;
+    if (horizontalIntent && (vx > SWIPE_VELOCITY_TRIGGER_RIGHT || projectedX > SWIPE_TRIGGER_RIGHT)) {
+      switchTopic('prev');
+      animateTopicBack();
+      return;
+    }
+    if (horizontalIntent && (vx < -SWIPE_VELOCITY_TRIGGER_LEFT || projectedX < -SWIPE_TRIGGER_LEFT)) {
+      switchTopic('next');
+      animateTopicBack();
+      return;
+    }
+    animateTopicBack();
+  };
+
+  const handleTopicCardPanGesture = (event: PanGestureHandlerGestureEvent) => {
+    const { translationX, translationY } = event.nativeEvent;
+    handleTopicPanMove(translationX);
+    updateBodyNudge(translationX, translationY);
+  };
+
+  const handleTopicCardPanStateChange = (event: PanGestureHandlerStateChangeEvent) => {
+    const { oldState, state, translationX, translationY, velocityX, velocityY } = event.nativeEvent;
+    const normalizedVx = velocityX / 1000;
+    const normalizedVy = velocityY / 1000;
+
+    if (state === State.ACTIVE) return;
+
+    if (oldState === State.ACTIVE) {
+      handleTopicPanRelease(translationX, translationY, normalizedVx, normalizedVy);
+      return;
+    }
+
+    if (state === State.CANCELLED || state === State.FAILED) {
+      animateTopicBack();
+    }
   };
 
   const animateBack = (vx = 0) => {
@@ -361,99 +476,104 @@ export default function HomeView({
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sTitle}>最近</Text>
-          <Pressable onPress={() => onNavigate('library')}><Text style={styles.moreText}>更多</Text></Pressable>
+          <Pressable style={styles.moreIconBtn} onPress={() => onNavigate('library')} hitSlop={10}>
+            <ChevronRight size={16} color="#a1a1aa" />
+          </Pressable>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentCards}>
-          {recent.map((n, idx) => {
-            const read = n.tags?.includes('已读');
-            return (
-              <View key={n.id} style={[styles.noteCard, read && styles.noteCardRead]}>
-                <Pressable style={styles.noteTopPressable} onPress={() => onNavigate('document', n.id)}>
-                  <View style={styles.noteTop}>
-                    <View style={styles.fileIcon}><FileText size={18} color="#6b7280" /></View>
-                    {read ? <Text style={styles.readBadge}>已读</Text> : null}
-                  </View>
-                </Pressable>
+          {recent.map((n, idx) => (
+            <View key={n.id} style={styles.noteCard}>
+              <Pressable style={styles.noteTopPressable} onPress={() => onNavigate('document', n.id)}>
+                <View style={styles.noteTop} />
+              </Pressable>
 
-                <Pressable style={styles.noteBottomPressable} onPress={() => openQuickRead(idx)}>
-                  <View style={{ padding: 10 }}>
-                    <Text numberOfLines={2} style={styles.noteTitle}>{n.title || '无标题'}</Text>
-                    <Text style={styles.noteSite}>{extractSite(n)}</Text>
-                    <Text style={styles.noteTime}>点此进入快读 · {format(n.updatedAt)}</Text>
+              <Pressable style={styles.noteBottomPressable} onPress={() => openQuickRead(idx)}>
+                <View style={styles.noteBottom}>
+                  <View style={styles.noteFileIconWrap}>
+                    <FileText size={24} color="#8f8f8a" strokeWidth={1.8} />
                   </View>
-                </Pressable>
-              </View>
-            );
-          })}
+                  <Text numberOfLines={2} style={styles.noteTitle}>{n.title || '无标题'}</Text>
+                </View>
+              </Pressable>
+            </View>
+          ))}
         </ScrollView>
 
         <View style={[styles.sectionHeader, { marginTop: 22 }]}>
-          <Text style={styles.sTitle}>快速消化</Text>
-        </View>
-
-        <View style={styles.capsuleCard}>
-          <View style={styles.capsuleHead}>
-            <View style={styles.capsuleHeadLeft}>
-              <View style={styles.capsuleIconWrap}>
-                <Sparkles size={15} color="#111827" />
-              </View>
-              <Text style={styles.capsuleTitle}>快速消化</Text>
-            </View>
-            <Text style={styles.capsuleMeta}>{briefing.coverageLabel}</Text>
-          </View>
-
-          <Pressable style={styles.capsuleCopyArea} onPress={() => setBriefingAdjustOpen(true)}>
-            <Text style={styles.capsuleCopy}>{briefing.capsuleText}</Text>
-            <Text style={styles.capsuleSubcopy}>{briefing.oneLiner}</Text>
-            <View style={styles.capsuleAdjustRow}>
-              <Text style={styles.capsuleAdjustText}>调整本期内容</Text>
-              <ChevronRight size={15} color="#64748b" />
-            </View>
+          <Text style={styles.sTitle}>快读</Text>
+          <Pressable style={styles.moreIconBtn} onPress={() => setBriefingAdjustOpen(true)} hitSlop={10}>
+            <Settings2 size={16} color="#a1a1aa" />
           </Pressable>
-
-          <View style={styles.capsuleFooter}>
-            <Pressable style={styles.readBriefingBtn} onPress={() => onNavigate('briefing')}>
-              <BookOpen size={14} color="white" />
-              <Text style={styles.readBriefingText}>阅读简报</Text>
-            </Pressable>
-            <Text style={styles.capsuleFooterText}>{briefing.dateLabel}</Text>
-          </View>
         </View>
+
+        <Pressable style={styles.capsuleCard} onPress={() => onNavigate('briefing')}>
+          <View style={styles.briefingStage}>
+            <View style={styles.briefingAccentBlock} />
+            <View style={styles.briefingAccentBlockSecondary} />
+            <Text style={styles.briefingEyebrow}>0318简报</Text>
+            <View style={styles.briefingCenterBlock}>
+              <Text numberOfLines={2} style={styles.briefingHook}>{briefingHook}</Text>
+            </View>
+            <Text style={styles.briefingMetaSolo}>{briefingMeta}</Text>
+          </View>
+        </Pressable>
 
         <View style={[styles.sectionHeader, { marginTop: 22 }]}>
-          <Text style={styles.sTitle}>深度探索</Text>
+          <Text style={styles.sTitle}>探索</Text>
+          <Pressable style={styles.moreIconBtn} onPress={() => setTopicPickerOpen(true)} hitSlop={10}>
+            <Plus size={16} color="#a1a1aa" />
+          </Pressable>
         </View>
 
-        <View style={styles.topicCard}>
-          <View style={styles.topicCardHead}>
-            <View style={styles.topicCardHeadLeft}>
-              <View style={styles.topicIconWrap}>
-                <Compass size={15} color="#2563eb" />
+        <PanGestureHandler
+          ref={topicPanRef}
+          activeOffsetX={[-PAN_ACTIVE_OFFSET_X, PAN_ACTIVE_OFFSET_X]}
+          failOffsetY={[-PAN_FAIL_OFFSET_Y, PAN_FAIL_OFFSET_Y]}
+          onGestureEvent={handleTopicCardPanGesture}
+          onHandlerStateChange={handleTopicCardPanStateChange}
+        >
+          <Animated.View style={{ transform: [{ translateX: topicTranslateX }, { scale: topicScale }] }}>
+            <Pressable
+              style={[styles.topicCard, { backgroundColor: topicTheme.bg, borderColor: topicTheme.border }]}
+              onPress={() => onNavigate('explore')}
+            >
+              <View style={[styles.topicStage, { backgroundColor: topicTheme.bg }]}>
+                <View style={[styles.topicPatternRail, { borderColor: topicTheme.buttonBorder, backgroundColor: topicTheme.accentB }]} />
+                <View style={[styles.topicPatternTrack, { backgroundColor: topicTheme.accentA }]} />
+                <View style={[styles.topicPatternTrackSecondary, { backgroundColor: topicTheme.buttonBorder }]} />
+                <View style={[styles.topicPatternCardBack, { borderColor: topicTheme.buttonBorder, backgroundColor: topicTheme.accentB }]} />
+                <View style={[styles.topicPatternCardFront, { borderColor: topicTheme.buttonBorder, backgroundColor: 'rgba(255,255,255,0.58)' }]} />
+                <View style={[styles.topicPatternDot, { backgroundColor: topicTheme.title }]} />
+                <View style={styles.topicContentBlock}>
+                  <Text numberOfLines={2} style={[styles.topicHook, styles.topicHookLeft, { color: topicTheme.title }]}>
+                    {topicWorkspace.topicLabel || '探索'}
+                  </Text>
+                  <Text numberOfLines={1} style={[styles.topicSubline, { color: topicTheme.meta }]}>
+                    {topicHint}
+                  </Text>
+                </View>
+                <View style={styles.topicFooterRow}>
+                  <Text style={[styles.topicMetaSolo, { color: topicTheme.meta }]}>{topicMeta}</Text>
+                  <View style={styles.topicPager}>
+                    {Array.from({ length: topicDotCount }).map((_, index) => (
+                      <View
+                        key={`topic-dot-${index}`}
+                        style={[
+                          styles.topicPagerDot,
+                          {
+                            backgroundColor: index === topicActiveDot ? topicTheme.title : topicTheme.buttonBorder,
+                            opacity: index === topicActiveDot ? 0.85 : 0.9,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                </View>
               </View>
-              <View>
-                <Text style={styles.topicCardLabel}>追踪中的 Topic</Text>
-                <Text style={styles.topicCardTitle}>{topicWorkspace.topicLabel}</Text>
-              </View>
-            </View>
-            <Text style={styles.topicCardTag}>{topicWorkspace.topicSource === 'custom' ? '手动设置' : 'AI 识别'}</Text>
-          </View>
-
-          <Text style={styles.topicSummary}>{topicWorkspace.summary}</Text>
-
-          <Text style={styles.topicQuietMeta}>
-            {`${Math.max(topicWorkspace.freshCount, topicWorkspace.noteCount ? 1 : 0)} 条进展 · ${Math.max(topicWorkspace.relationCount, topicWorkspace.noteCount ? 1 : 0)} 个关联视角 · 1 个挑战`}
-          </Text>
-
-          <View style={styles.topicCardFooter}>
-            <Pressable style={styles.topicPrimaryBtn} onPress={() => onNavigate('explore')}>
-              <Text style={styles.topicPrimaryText}>继续探索</Text>
             </Pressable>
-            <Pressable style={styles.topicTextBtn} onPress={() => setTopicPickerOpen(true)}>
-              <Text style={styles.topicTextBtnText}>调整 Topic</Text>
-            </Pressable>
-          </View>
-        </View>
+          </Animated.View>
+        </PanGestureHandler>
       </ScrollView>
 
       <Modal visible={briefingAdjustOpen} transparent animationType="slide" onRequestClose={() => setBriefingAdjustOpen(false)}>
@@ -636,76 +756,284 @@ export default function HomeView({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc', paddingHorizontal: 16, paddingTop: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  container: { flex: 1, backgroundColor: '#faf9f7', paddingHorizontal: 16, paddingTop: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   h1: { ...mobileType.screenTitle },
 
   sectionHeader: { marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sTitle: { ...mobileType.sectionTitle },
-  moreText: { fontSize: 16, color: '#9ca3af', fontWeight: '600' },
-
-  recentCards: { gap: 12, paddingRight: 20 },
-  noteCard: { width: 190, backgroundColor: 'white', borderRadius: 18, borderWidth: 1, borderColor: '#e5e7eb', overflow: 'hidden' },
-  noteCardRead: { borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' },
-  noteTopPressable: { flex: 1 },
-  noteBottomPressable: { borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-  noteTop: { height: 88, backgroundColor: '#f3f4f6', justifyContent: 'space-between', alignItems: 'flex-start', padding: 10 },
-  fileIcon: { width: 34, height: 34, borderRadius: 9, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
-  readBadge: { fontSize: 11, color: '#15803d', backgroundColor: '#dcfce7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, fontWeight: '700' },
-  noteTitle: { ...mobileType.cardTitle, minHeight: 44 },
-  noteSite: { marginTop: 2, fontSize: 12, color: '#6b7280' },
-  noteTime: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
-  capsuleCard: {
-    marginTop: 12,
-    backgroundColor: '#fffef9',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#e8dfce',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    shadowColor: '#111827',
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 2,
+  sTitle: { fontSize: 15, lineHeight: 20, color: '#8a8a88', fontWeight: '500', letterSpacing: 0.1 },
+  moreIconBtn: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  capsuleHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  capsuleHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  capsuleIconWrap: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f7ead1', alignItems: 'center', justifyContent: 'center' },
-  capsuleTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
-  capsuleMeta: { fontSize: 12, color: '#92400e', backgroundColor: '#fff3d6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden', fontWeight: '700' },
-  capsuleCopyArea: { marginTop: 12, borderRadius: 18, backgroundColor: '#fffcf3', borderWidth: 1, borderColor: '#efe4c9', paddingHorizontal: 14, paddingVertical: 14 },
-  capsuleCopy: { fontSize: 15, lineHeight: 22, color: '#1f2937', fontWeight: '700' },
-  capsuleSubcopy: { marginTop: 8, fontSize: 13, lineHeight: 20, color: '#64748b' },
-  capsuleAdjustRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4 },
-  capsuleAdjustText: { fontSize: 12, color: '#64748b', fontWeight: '700' },
-  capsuleFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  readBriefingBtn: { height: 38, borderRadius: 12, backgroundColor: '#111827', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  readBriefingText: { fontSize: 13, color: 'white', fontWeight: '800' },
-  capsuleFooterText: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
 
-  topicCard: {
-    marginTop: 12,
+  recentCards: { gap: 14, paddingRight: 20, paddingTop: 8 },
+  noteCard: {
+    width: 140,
     backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderColor: '#e9e6df',
+    overflow: 'hidden',
   },
-  topicCardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
-  topicCardHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  topicIconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
-  topicCardLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
-  topicCardTitle: { marginTop: 2, fontSize: 18, lineHeight: 24, color: '#0f172a', fontWeight: '800' },
-  topicCardTag: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
-  topicSummary: { marginTop: 12, fontSize: 14, lineHeight: 21, color: '#334155' },
-  topicQuietMeta: { marginTop: 10, fontSize: 12, lineHeight: 18, color: '#94a3b8' },
-  topicCardFooter: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  topicPrimaryBtn: { minWidth: 108, height: 40, borderRadius: 12, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  topicPrimaryText: { fontSize: 14, color: 'white', fontWeight: '800' },
-  topicTextBtn: { paddingHorizontal: 4, paddingVertical: 6 },
-  topicTextBtnText: { fontSize: 13, color: '#64748b', fontWeight: '700' },
+  noteTopPressable: { height: 72 },
+  noteBottomPressable: { minHeight: 72 },
+  noteTop: { flex: 1, backgroundColor: '#f5f3ef' },
+  noteBottom: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    paddingTop: 20,
+    paddingBottom: 12,
+    justifyContent: 'flex-start',
+  },
+  noteFileIconWrap: {
+    position: 'absolute',
+    top: -12,
+    left: 14,
+  },
+  noteTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#1f1f1d',
+    fontWeight: '500',
+    letterSpacing: -0.18,
+  },
+  capsuleCard: {
+    marginTop: 8,
+    backgroundColor: '#f7faff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#e3ebf8',
+    overflow: 'hidden',
+  },
+  briefingStage: {
+    backgroundColor: '#f7faff',
+    minHeight: 138,
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    paddingBottom: 8,
+    overflow: 'hidden',
+  },
+  briefingAccentBlock: {
+    position: 'absolute',
+    right: -18,
+    top: -14,
+    width: 100,
+    height: 100,
+    borderRadius: 999,
+    backgroundColor: '#dfeaff',
+  },
+  briefingAccentBlockSecondary: {
+    position: 'absolute',
+    left: -18,
+    bottom: -20,
+    width: 74,
+    height: 74,
+    borderRadius: 999,
+    backgroundColor: '#f9fbff',
+  },
+  briefingCenterBlock: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 2,
+  },
+  briefingEyebrow: {
+    position: 'absolute',
+    left: 20,
+    top: 10,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#8a98b1',
+    fontWeight: '600',
+    letterSpacing: 0.06,
+  },
+  briefingHook: {
+    maxWidth: '88%',
+    fontSize: 17,
+    lineHeight: 23,
+    color: '#182034',
+    fontWeight: '600',
+    letterSpacing: -0.12,
+    textAlign: 'center',
+  },
+  briefingMetaSolo: {
+    position: 'absolute',
+    left: 20,
+    bottom: 7,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#7180a0',
+    fontWeight: '500',
+    letterSpacing: 0.05,
+  },
+  featureFooter: { paddingHorizontal: 4, paddingTop: 14, paddingBottom: 2 },
+  cardActionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  cardPrimaryAction: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+  },
+  cardPrimaryActionText: { fontSize: 15, color: '#1f1f1d', fontWeight: '600', letterSpacing: -0.15 },
+  cardSecondaryAction: {
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: '#f6f5f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  cardSecondaryActionText: { fontSize: 12, color: '#7f7f7b', fontWeight: '500' },
+
+  topicCard: {
+    marginTop: 8,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  topicHeadline: {
+    marginTop: 10,
+    fontSize: 28,
+    lineHeight: 34,
+    color: '#191919',
+    fontWeight: '500',
+    letterSpacing: -0.95,
+  },
+  topicStage: {
+    backgroundColor: '#f1f5f9',
+    minHeight: 142,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 9,
+    overflow: 'hidden',
+  },
+  topicPatternRail: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    bottom: 14,
+    width: 80,
+    borderRadius: 22,
+    borderWidth: 1,
+    backgroundColor: '#ebf1f8',
+  },
+  topicPatternTrack: {
+    position: 'absolute',
+    right: 8,
+    top: 46,
+    width: 92,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: '#e0e7f0',
+    transform: [{ rotate: '-13deg' }],
+  },
+  topicPatternTrackSecondary: {
+    position: 'absolute',
+    right: 22,
+    top: 70,
+    width: 62,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: '#d4dce6',
+    transform: [{ rotate: '18deg' }],
+  },
+  topicPatternCardBack: {
+    position: 'absolute',
+    right: 28,
+    bottom: 22,
+    width: 64,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: '#f3f7fb',
+    transform: [{ rotate: '-8deg' }],
+  },
+  topicPatternCardFront: {
+    position: 'absolute',
+    right: 22,
+    bottom: 16,
+    width: 64,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.58)',
+    transform: [{ rotate: '4deg' }],
+  },
+  topicPatternDot: {
+    position: 'absolute',
+    right: 74,
+    top: 28,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#1c2430',
+  },
+  topicContentBlock: {
+    marginTop: 2,
+    width: '70%',
+    minHeight: 0,
+    justifyContent: 'flex-start',
+  },
+  topicHook: {
+    maxWidth: '88%',
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#1c2430',
+    fontWeight: '600',
+    letterSpacing: -0.12,
+    textAlign: 'center',
+  },
+  topicHookLeft: {
+    maxWidth: '100%',
+    fontSize: 17,
+    lineHeight: 23,
+    textAlign: 'left',
+    letterSpacing: -0.45,
+  },
+  topicSubline: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+    letterSpacing: -0.04,
+  },
+  topicFooterRow: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  topicMetaSolo: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#73808c',
+    fontWeight: '500',
+    letterSpacing: 0.05,
+  },
+  topicPager: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  topicPagerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#d4dce4',
+  },
 
   sheetMask: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.24)' },
   adjustSheet: {
