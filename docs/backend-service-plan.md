@@ -130,43 +130,44 @@ EchoNote 现在要优先做的是一个 `可稳定演示的 MVP / Demo`，而不
 
 ### `render.yaml`
 
-已提供双服务蓝图：
+当前 MVP 部署路径改为单服务蓝图：
 
-1. `echonote-parser`
-2. `echonote-api`
+1. `echonote-api`
 
 ## Render 部署方案
 
-### 推荐部署拓扑
+### 当前 MVP 部署拓扑
 
 ```text
 Expo App
    ->
 echonote-api (public)
-   ->
-echonote-parser (private)
-   ->
-目标网页
+   -> embedded parser
+   -> 目标网页
 
 Expo App
    ->
 Supabase
 ```
 
-### Render 上的两个服务
+### Render 上的服务
 
-#### A. `echonote-parser`
-
-- 类型：Private Service
-- 根目录：`packages/web-parser`
-- 职责：运行 Puppeteer 相关解析逻辑
-
-#### B. `echonote-api`
+#### `echonote-api`
 
 - 类型：Web Service
 - 根目录：`backend`
 - 职责：暴露 `/health`、`/api/fetch/*`、`/api/ai/*`
-- 通过 `WEB_PARSER_HOSTPORT` 调用 parser
+- 默认直接调用仓库内的 embedded parser
+
+### 为什么当前先走单服务
+
+因为当前目标是先验证 MVP 核心链路是否可跑通，并压低 Render 成本。
+
+当前接受的取舍是：
+
+- 先把 `Private Service` 的固定成本去掉
+- 先验证抓取、AI、job、artifact 主链路
+- 后续如果抓取稳定性或资源隔离成为瓶颈，再切回双服务
 
 ### 为什么先不把 mobile web 端也一起部署
 
@@ -179,7 +180,7 @@ Supabase
 当前需要重点关注：
 
 - `PORT`
-- `WEB_PARSER_HOSTPORT`
+- `WEB_PARSER_URL`（可选；默认不填，直接走 embedded parser）
 - `BAILIAN_API_KEY`
 - `BAILIAN_BASE_URL`
 - `BAILIAN_MODEL`

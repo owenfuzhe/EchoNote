@@ -4,7 +4,7 @@
 
 当前建议分两阶段：
 
-1. 先用 `demo provider` 部署，验证双服务链路
+1. 先用 `demo provider` 部署，验证单服务 MVP 链路
 2. 再补 `DashScope / 百炼` 的真实 key
 
 ## 部署对象
@@ -13,10 +13,16 @@
 
 - [render.yaml](/Users/bytedance/Echonote/render.yaml)
 
-会创建两个服务：
+开始前先确认两件事：
 
-1. `echonote-parser`
-2. `echonote-api`
+1. `render.yaml` 已经提交并 push 到 Render 会读取的分支
+2. 该分支上的仓库代码已经同步到 GitHub
+
+如果 `render.yaml` 只存在于本地或某个尚未推送的 feature branch，Render Dashboard 读取仓库时是看不到这份蓝图的。
+
+当前蓝图只创建一个服务：
+
+1. `echonote-api`
 
 ## 阶段一：先用 demo provider 跑通
 
@@ -26,28 +32,18 @@
 
 预期会生成：
 
-- 一个 `Private Service`：`echonote-parser`
 - 一个 `Web Service`：`echonote-api`
 
-### 2. 检查 parser 服务配置
-
-`echonote-parser` 关键点：
-
-- `rootDir`: `packages/web-parser`
-- `buildCommand`: `npm install && npm run build`
-- `startCommand`: `npm run start`
-- `healthCheckPath`: `/health`
-- `NODE_VERSION`: `20`
-
-### 3. 检查 API 服务配置
+### 2. 检查 API 服务配置
 
 `echonote-api` 关键点：
 
 - `rootDir`: `backend`
-- `buildCommand`: `npm install`
+- `buildCommand`: `npm ci && npm run build:parser`
 - `startCommand`: `npm run start`
 - `healthCheckPath`: `/health`
 - `NODE_VERSION`: `20`
+- 不配置 `WEB_PARSER_URL` / `WEB_PARSER_HOSTPORT` 时，后端会直接使用仓库里的 embedded parser
 
 ### 4. 阶段一建议环境变量
 
@@ -84,7 +80,7 @@
 预期：
 
 - `/health` 返回 `aiProvider: "demo"`
-- `parser` 字段指向 Render 私网 parser 地址
+- `parser` 字段返回 `embedded`
 - `POST /api/ai/jobs/briefing` 返回 `jobId`
 - 再请求 `GET /api/ai/jobs/:jobId` 最终能看到 `status: "succeeded"`
 
@@ -143,11 +139,10 @@ Render 上 `echonote-api` 发布成功后，把 mobile 环境变量更新为：
 
 如果下面这条链路成立，就算 Render 部署第一阶段成功：
 
-1. `echonote-parser` 健康检查通过
-2. `echonote-api` 健康检查通过
-3. `POST /api/fetch/web` 能成功返回网页内容
-4. `POST /api/ai/chat` 能返回 demo provider 内容
-5. `POST /api/ai/jobs/podcast` 或 `POST /api/ai/jobs/briefing` 能成功产出 job
+1. `echonote-api` 健康检查通过
+2. `POST /api/fetch/web` 能成功返回网页内容
+3. `POST /api/ai/chat` 能返回 demo provider 内容
+4. `POST /api/ai/jobs/podcast` 或 `POST /api/ai/jobs/briefing` 能成功产出 job
 
 ## 常见问题
 
@@ -155,8 +150,7 @@ Render 上 `echonote-api` 发布成功后，把 mobile 环境变量更新为：
 
 因为这样可以先验证：
 
-- Render 双服务拓扑
-- 内外网互通
+- Render 上单服务 MVP 是否可跑
 - 路由设计
 - job / artifact 基础流程
 
@@ -166,8 +160,8 @@ Render 上 `echonote-api` 发布成功后，把 mobile 环境变量更新为：
 
 因为当前我们要优先确认的是：
 
-- parser 服务是否稳定
 - backend 服务是否稳定
+- embedded parser 是否稳定
 - AI action / job 是否能走通
 
 数据库属于下一层能力，不是 Render 首次部署的必要条件。

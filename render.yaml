@@ -1,30 +1,15 @@
 services:
-  - type: pserv
-    name: echonote-parser
-    runtime: node
-    rootDir: packages/web-parser
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
-    healthCheckPath: /health
-    envVars:
-      - key: NODE_VERSION
-        value: 20
-
   - type: web
     name: echonote-api
     runtime: node
+    plan: free
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm ci && npm run build:parser
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 20
-      - key: WEB_PARSER_HOSTPORT
-        fromService:
-          type: pserv
-          name: echonote-parser
-          property: hostport
       - key: BAILIAN_API_KEY
         sync: false
       - key: BAILIAN_BASE_URL

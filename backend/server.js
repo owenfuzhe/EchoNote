@@ -10,11 +10,16 @@ const cheerio = require('cheerio');
 const { isDbConfigured, query, withTransaction } = require('./db');
 const { createAiService } = require('./src/ai/service');
 const { createAiRouter } = require('./src/ai/router');
+const { createParserClient } = require('./src/parser/client');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 const WEB_PARSER_HOSTPORT = process.env.WEB_PARSER_HOSTPORT || '';
-const WEB_PARSER_URL = process.env.WEB_PARSER_URL || (WEB_PARSER_HOSTPORT ? `http://${WEB_PARSER_HOSTPORT}` : 'http://localhost:3456');
+const WEB_PARSER_URL = process.env.WEB_PARSER_URL || (WEB_PARSER_HOSTPORT ? `http://${WEB_PARSER_HOSTPORT}` : '');
+const parserClient = createParserClient({
+  hostport: WEB_PARSER_HOSTPORT,
+  url: WEB_PARSER_URL,
+});
 const DEFAULT_OWNER_ID = process.env.DEFAULT_OWNER_ID || 'local-dev-user';
 const DEFAULT_OWNER_NAME = process.env.DEFAULT_OWNER_NAME || 'EchoNote Local User';
 const BAILIAN_API_KEY = process.env.BAILIAN_API_KEY || process.env.DASHSCOPE_API_KEY || '';
@@ -75,19 +80,7 @@ function normalizeXiaohongshuUrl(rawUrl = '') {
 }
 
 async function fetchFromParser(endpoint, payload) {
-  const response = await axios.post(`${WEB_PARSER_URL}${endpoint}`, payload, {
-    timeout: 45000,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-
-  if (!response.data || response.data.success === false) {
-    const message = response.data?.error || response.data?.message || 'Parser service error';
-    throw new Error(String(message || 'Parser service error'));
-  }
-
-  return response.data;
+  return parserClient.request(endpoint, payload);
 }
 
 function genNoteId() {
@@ -244,7 +237,7 @@ app.get('/health', (req, res) => {
     availableAiProviders: aiHealth.availableProviders,
     ttsProvider: aiHealth.ttsProvider,
     tools: aiHealth.tools,
-    parser: WEB_PARSER_URL,
+    parser: parserClient.describe(),
   });
 });
 
