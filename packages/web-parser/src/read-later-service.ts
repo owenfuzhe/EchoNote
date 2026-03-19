@@ -1,4 +1,6 @@
 import * as cheerio from 'cheerio';
+import * as http from 'node:http';
+import * as https from 'node:https';
 import puppeteer, { type HTTPRequest } from 'puppeteer';
 import { DomainRuleEngine } from './domain-rule-engine';
 import { PlatformParserRegistry } from './platform-parsers';
@@ -77,20 +79,27 @@ export class ReadLaterService {
       return this.fetchByBrowser(url, config.headers);
     }
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        ...(config.headers ?? {}),
-      },
-      redirect: 'follow',
-    });
+    const headers = {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      ...(config.headers ?? {}),
+    };
 
-    if (!response.ok) {
-      throw new Error(`Request failed: ${response.status}`);
+    try {
+      const response = await fetch(url, {
+        headers,
+        redirect: 'follow',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+
+      return response.text();
+    } catch (error) {
+      // Some hosts fail under the built-in fetch client on Render free instances.
+      return this.fetchByNodeRequest(url, headers, error);
     }
-
-    return response.text();
   }
 
   private async fetchByBrowser(url: string, headers?: Record<string, string>): Promise<string> {
@@ -174,6 +183,68 @@ export class ReadLaterService {
     } finally {
       await browser.close().catch(() => undefined);
     }
+  }
+
+  private fetchByNodeRequest(
+    url: string,
+    headers: Record<string, string>,
+    originalError?: unknown,
+    redirectCount = 0,
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (redirectCount > 5) {
+        reject(new Error('Too many redirects'));
+        return;
+      }
+
+      const parsed = new URL(url);
+      const client = parsed.protocol === 'http:' ? http : https;
+
+      const request = client.request(
+        parsed,
+        {
+          method: 'GET',
+          headers,
+        },
+        (response) => {
+          const statusCode = response.statusCode || 0;
+
+          if ([301, 302, 303, 307, 308].includes(statusCode) && response.headers.location) {
+            response.resume();
+            const nextUrl = new URL(response.headers.location, parsed).toString();
+            this.fetchByNodeRequest(nextUrl, headers, originalError, redirectCount + 1).then(resolve).catch(reject);
+            return;
+          }
+
+          if (statusCode < 200 || statusCode >= 300) {
+            response.resume();
+            reject(new Error(`Request failed: ${statusCode}`));
+            return;
+          }
+
+          let body = '';
+          response.setEncoding('utf8');
+          response.on('data', (chunk) => {
+            body += chunk;
+          });
+          response.on('end', () => {
+            resolve(body);
+          });
+        },
+      );
+
+      request.setTimeout(30000, () => {
+        request.destroy(new Error('Request timed out'));
+      });
+      request.on('error', (error) => {
+        if (originalError instanceof Error) {
+          reject(new Error(`Fetch failed after fallback: ${originalError.message}; ${error.message}`));
+          return;
+        }
+        reject(error);
+      });
+      request.end();
+    });
   }
 }
 

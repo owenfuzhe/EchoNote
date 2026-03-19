@@ -506,7 +506,7 @@ app.post('/api/fetch/wechat', async (req, res) => {
       snapshot_html: parserData.raw_html || parserData.cleaned_html || ''
     });
   } catch (error) {
-    console.error('WeChat fetch error:', error.message);
+    console.error('WeChat fetch error:', error);
     res.status(500).json({
       code: 'FETCH_ERROR',
       message: error.message
@@ -560,7 +560,7 @@ app.post('/api/fetch/bilibili', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Bilibili fetch error:', error.message);
+    console.error('Bilibili fetch error:', error);
     res.status(500).json({
       code: 'FETCH_ERROR',
       message: error.message
@@ -611,7 +611,7 @@ app.post('/api/fetch/xiaohongshu', async (req, res) => {
       snapshot_html: parserData.raw_html || parserData.cleaned_html || ''
     });
   } catch (error) {
-    console.error('Xiaohongshu fetch error:', error.message);
+    console.error('Xiaohongshu fetch error:', error);
     res.status(500).json({
       code: 'FETCH_ERROR',
       message: error.message
@@ -649,7 +649,7 @@ app.post('/api/fetch/web', async (req, res) => {
       snapshot_html: legacyData.raw_html || legacyData.cleaned_html || ''
     });
   } catch (error) {
-    console.error('Web fetch error:', error.message);
+    console.error('Web fetch error:', error);
     res.status(500).json({
       code: 'FETCH_ERROR',
       message: error.message
