@@ -5,7 +5,7 @@
 当前建议分两阶段：
 
 1. 先用 `demo provider` 部署，验证单服务 MVP 链路
-2. 再补 `DashScope / 百炼` 的真实 key
+2. 再补 `DashScope / 百炼` 或 `xAI / Grok` 的真实 key
 
 ## 部署对象
 
@@ -57,6 +57,7 @@
 这时可以先不填：
 
 - `BAILIAN_API_KEY`
+- `XAI_API_KEY`
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
 - `DEEPSEEK_API_KEY`
@@ -65,6 +66,7 @@
 说明：
 
 - 不填 `BAILIAN_API_KEY` 时，AI 接口会走内置 `demo provider`
+- 不填 `XAI_API_KEY` 时，也不会启用 `xai provider`
 - 不填 `DATABASE_URL` 时，`notes` 相关接口不可用，但抓取和 AI demo 仍可验证
 
 ### 5. 阶段一验收
@@ -84,7 +86,9 @@
 - `POST /api/ai/jobs/briefing` 返回 `jobId`
 - 再请求 `GET /api/ai/jobs/:jobId` 最终能看到 `status: "succeeded"`
 
-## 阶段二：切到真实 DashScope provider
+## 阶段二：切到真实 provider
+
+### 方案 A：DashScope / 百炼
 
 当阶段一稳定后，再把 `echonote-api` 的环境变量改成：
 
@@ -107,6 +111,31 @@
 预期：
 
 - `/health` 返回 `aiProvider: "dashscope"`
+- AI 接口不再返回 demo 风格内容
+
+### 方案 B：xAI / Grok
+
+如果你更想先用 xAI，则把 `echonote-api` 的环境变量改成：
+
+- `AI_PROVIDER=xai`
+- `XAI_API_KEY=<你的 xAI Key>`
+
+可保留或补充：
+
+- `XAI_BASE_URL=https://api.x.ai/v1`
+- `XAI_MODEL=grok-4-1-fast`
+
+切换后重新部署，再验证：
+
+- `GET /health`
+- `POST /api/ai/chat`
+- `POST /api/ai/quick-read`
+- `POST /api/ai/article-to-note`
+- `POST /api/ai/voice-clean`
+
+预期：
+
+- `/health` 返回 `aiProvider: "xai"`
 - AI 接口不再返回 demo 风格内容
 
 ## 可选：接数据库

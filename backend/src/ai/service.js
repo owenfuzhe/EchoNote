@@ -1,5 +1,6 @@
 const { createDemoProvider } = require('./providers/demo');
 const { createDashScopeProvider } = require('./providers/dashscope');
+const { createXaiProvider } = require('./providers/xai');
 const { createToolRegistry } = require('./tools');
 const { createArtifact, createJob, getArtifact, getJob, getLatestArtifactByType, updateJob } = require('./stores');
 
@@ -8,11 +9,14 @@ function createAiService(config = {}) {
   const providers = {
     demo: createDemoProvider(),
     dashscope: createDashScopeProvider(config.dashscope || {}),
+    xai: createXaiProvider(config.xai || {}),
   };
 
   function defaultProviderName() {
     if (config.provider && providers[config.provider]) return config.provider;
-    return providers.dashscope.isConfigured() ? 'dashscope' : 'demo';
+    if (providers.dashscope.isConfigured()) return 'dashscope';
+    if (providers.xai.isConfigured()) return 'xai';
+    return 'demo';
   }
 
   function getProvider(providerName) {
@@ -80,9 +84,14 @@ function createAiService(config = {}) {
 
   return {
     getHealth() {
+      const configuredProviders = Object.entries(providers)
+        .filter(([name, provider]) => name !== 'demo' && provider.isConfigured())
+        .map(([name]) => name);
+
       return {
         provider: defaultProviderName(),
-        configured: providers.dashscope.isConfigured(),
+        configured: configuredProviders.length > 0,
+        configuredProviders,
         availableProviders: Object.keys(providers),
         ttsProvider: config.ttsProvider || 'demo',
         tools: toolRegistry.list().map((tool) => tool.id),

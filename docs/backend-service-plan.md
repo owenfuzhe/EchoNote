@@ -184,6 +184,9 @@ Supabase
 - `BAILIAN_API_KEY`
 - `BAILIAN_BASE_URL`
 - `BAILIAN_MODEL`
+- `XAI_API_KEY`
+- `XAI_BASE_URL`
+- `XAI_MODEL`
 - `DATABASE_URL`（当前可选）
 
 后续建议新增：
