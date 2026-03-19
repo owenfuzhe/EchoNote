@@ -8,6 +8,8 @@ const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { isDbConfigured, query, withTransaction } = require('./db');
+const { createAiService } = require('./src/ai/service');
+const { createAiRouter } = require('./src/ai/router');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -18,7 +20,19 @@ const DEFAULT_OWNER_NAME = process.env.DEFAULT_OWNER_NAME || 'EchoNote Local Use
 const BAILIAN_API_KEY = process.env.BAILIAN_API_KEY || process.env.DASHSCOPE_API_KEY || '';
 const BAILIAN_BASE_URL = process.env.BAILIAN_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1';
 const BAILIAN_MODEL = process.env.BAILIAN_MODEL || 'qwen-max';
+const AI_PROVIDER = process.env.AI_PROVIDER || '';
+const TTS_PROVIDER = process.env.TTS_PROVIDER || 'demo';
 const NOTE_TYPES = new Set(['voice', 'text', 'ai', 'link', 'file', 'image']);
+
+const aiService = createAiService({
+  provider: AI_PROVIDER,
+  ttsProvider: TTS_PROVIDER,
+  dashscope: {
+    apiKey: BAILIAN_API_KEY,
+    baseUrl: BAILIAN_BASE_URL,
+    model: BAILIAN_MODEL,
+  },
+});
 
 const NOTE_SELECT = `
   select
@@ -130,13 +144,6 @@ function dbUnavailable(res) {
   });
 }
 
-function aiUnavailable(res) {
-  return res.status(503).json({
-    code: 'AI_NOT_CONFIGURED',
-    message: 'AI service is not configured. Set BAILIAN_API_KEY before using AI APIs.',
-  });
-}
-
 function validateNotePayload(input, { partial = false } = {}) {
   const payload = input && typeof input === 'object' ? input : {};
   const updates = {};
@@ -223,82 +230,22 @@ async function fetchNoteRow(executor, noteId) {
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/api/ai', createAiRouter(aiService));
 
 // Health check
 app.get('/health', (req, res) => {
+  const aiHealth = aiService.getHealth();
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     database: isDbConfigured() ? 'configured' : 'unconfigured',
-    ai: BAILIAN_API_KEY ? 'configured' : 'unconfigured',
+    ai: aiHealth.configured ? 'configured' : 'demo',
+    aiProvider: aiHealth.provider,
+    availableAiProviders: aiHealth.availableProviders,
+    ttsProvider: aiHealth.ttsProvider,
+    tools: aiHealth.tools,
     parser: WEB_PARSER_URL,
   });
-});
-
-app.post('/api/ai/chat', async (req, res) => {
-  if (!BAILIAN_API_KEY) return aiUnavailable(res);
-
-  const payload = req.body && typeof req.body === 'object' ? req.body : {};
-  const messages = Array.isArray(payload.messages) ? payload.messages : [];
-  const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
-
-  if (!messages.length) {
-    return res.status(400).json({
-      code: 'MISSING_MESSAGES',
-      message: 'messages is required',
-    });
-  }
-
-  const requestMessages =
-    options.systemPrompt && !messages.some((message) => message?.role === 'system')
-      ? [{ role: 'system', content: String(options.systemPrompt) }, ...messages]
-      : messages;
-
-  try {
-    const response = await axios.post(
-      `${BAILIAN_BASE_URL}/services/aigc/text-generation/generation`,
-      {
-        model: options.model || BAILIAN_MODEL,
-        input: { messages: requestMessages },
-        parameters: {
-          temperature: options.temperature ?? 0.7,
-          max_tokens: options.maxTokens ?? 1024,
-          result_format: 'message',
-        },
-      },
-      {
-        timeout: 45000,
-        headers: {
-          Authorization: `Bearer ${BAILIAN_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const data = response.data || {};
-    const output = data.output || {};
-    const content = output?.choices?.[0]?.message?.content || output?.choices?.[0]?.text || output?.text || '';
-
-    return res.json({
-      content: String(content).trim(),
-      model: output?.model || options.model || BAILIAN_MODEL,
-      totalTokens: data?.usage?.total_tokens,
-      timestamp: Date.now(),
-    });
-  } catch (error) {
-    const status = error.response?.status || 500;
-    const message =
-      error.response?.data?.message ||
-      error.response?.data?.code ||
-      error.message ||
-      'AI proxy request failed';
-
-    console.error('AI chat proxy error:', message);
-    return res.status(status).json({
-      code: 'AI_PROXY_ERROR',
-      message,
-    });
-  }
 });
 
 app.get('/api/notes', async (req, res) => {
@@ -717,13 +664,40 @@ app.post('/api/fetch/web', async (req, res) => {
   }
 });
 
+app.get('/api/briefings/latest', (req, res) => {
+  const artifact = aiService.getLatestBriefing();
+  if (!artifact) {
+    return res.status(404).json({ code: 'BRIEFING_NOT_FOUND', message: 'No briefing artifact available' });
+  }
+  return res.json(artifact);
+});
+
+app.get('/api/podcasts/:artifactId', (req, res) => {
+  const artifact = aiService.getPodcast(req.params.artifactId);
+  if (!artifact) {
+    return res.status(404).json({ code: 'PODCAST_NOT_FOUND', message: 'Podcast artifact not found' });
+  }
+  return res.json(artifact);
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 EchoNote backend running on http://localhost:${PORT}`);
   console.log(`📚 API endpoints:`);
+  console.log(`   - POST /api/ai/chat`);
+  console.log(`   - POST /api/ai/quick-read`);
+  console.log(`   - POST /api/ai/explore-questions`);
+  console.log(`   - POST /api/ai/article-to-note`);
+  console.log(`   - POST /api/ai/voice-clean`);
+  console.log(`   - POST /api/ai/jobs/briefing`);
+  console.log(`   - POST /api/ai/jobs/podcast`);
+  console.log(`   - GET  /api/ai/jobs/:jobId`);
+  console.log(`   - GET  /api/ai/artifacts/:artifactId`);
   console.log(`   - POST /api/fetch/wechat`);
   console.log(`   - POST /api/fetch/bilibili`);
   console.log(`   - POST /api/fetch/xiaohongshu`);
   console.log(`   - POST /api/fetch/web`);
+  console.log(`   - GET  /api/briefings/latest`);
+  console.log(`   - GET  /api/podcasts/:artifactId`);
   console.log(`   - GET  /health`);
 });

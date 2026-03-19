@@ -9,8 +9,12 @@
 1. EchoNote 当前后端到底承担什么角色
 2. 为什么抓取服务要拆成两个服务
 3. Render 上应该怎么部署
-4. AI 为什么要做成可切 provider 的结构
+4. AI 为什么要做成 `action / job / artifact / provider / tool` 这套结构
 5. 接下来几个 Sprint 具体做什么
+
+如果只想先看 AI 助手整体口径，先看：
+
+- [docs/ai-assistant-architecture.md](/Users/bytedance/Echonote/docs/ai-assistant-architecture.md)
 
 ## 当前阶段的核心判断
 
@@ -83,6 +87,7 @@ EchoNote 现在要优先做的是一个 `可稳定演示的 MVP / Demo`，而不
 
 - AI 能力代理
 - 内容抓取编排
+- 异步 job 与 artifact 状态管理
 - 后续日志、限流、错误监控
 - provider 路由
 
@@ -189,8 +194,12 @@ Supabase
 - `COZE_WORKFLOW_EXPLORE`
 - `COZE_WORKFLOW_ARTICLE_TO_NOTE`
 - `COZE_WORKFLOW_VOICE_CLEAN`
+- `COZE_WORKFLOW_BRIEFING`
+- `COZE_WORKFLOW_PODCAST`
 - `OPENAI_API_KEY`
 - `DEEPSEEK_API_KEY`
+- `TTS_PROVIDER`
+- `TTS_API_KEY`
 
 ### `mobile`
 
@@ -207,17 +216,31 @@ Supabase
 
 `前端不要直接感知 Coze / 百炼 / OpenAI / DeepSeek。`
 
-前端只应该感知“能力动作”，而不是“底层供应商”。
+前端只应该感知“能力动作”和“异步任务”，而不是“底层供应商”。
 
 ### 推荐能力层
 
-后端先定义固定动作：
+后端当前建议明确分成 4 层：
 
-1. `quick-read`
-2. `explore-questions`
-3. `article-to-note`
-4. `voice-clean`
-5. `chat`
+1. 同步 `actions`
+   - `quick-read`
+   - `explore-questions`
+   - `article-to-note`
+   - `voice-clean`
+   - `chat`
+2. 异步 `jobs`
+   - `briefing.generate`
+   - `podcast.generate`
+3. 正式 `artifacts`
+   - `structured_note`
+   - `briefing`
+   - `podcast`
+4. 可插拔 `tools`
+   - `web_fetch`
+   - `search`
+   - 后续 `mcp:*`
+
+短期内不需要把所有目录一次性拆完，但新的能力要按这套边界设计。
 
 ### 推荐后端目录目标
 
@@ -233,14 +256,27 @@ backend/
         article-to-note
         voice-clean
         chat
+      jobs/
+        briefing.generate
+        podcast.generate
+      artifacts/
+        briefing
+        podcast
+        structured-note
       providers/
         demo
         coze
         dashscope
         openai
         deepseek
+      tools/
+        web-fetch
+        search
+        note-lookup
+        mcp
       schemas/
       prompts/
+      router/
 ```
 
 现在不需要一步到位重构成这样，但后面写代码时要按这个方向留口子。
@@ -295,6 +331,8 @@ backend/
 1. 架构上支持 `provider abstraction`
 2. Demo 阶段允许先接 Coze
 3. 但前端和接口设计绝不直接绑定 Coze
+4. `podcast` 和 `briefing` 这类重能力不要继续当成同步 prompt 返回值
+5. 所有外部能力都通过 tool 层接入，而不是直接散落在业务代码里
 
 ## 推荐 API 设计
 
@@ -302,13 +340,22 @@ backend/
 
 - `POST /api/ai/chat`
 
-下一步建议补成下面这一组固定动作接口：
+下一步建议补成下面两类接口：
+
+### A. 同步 action
 
 - `POST /api/ai/quick-read`
 - `POST /api/ai/explore-questions`
 - `POST /api/ai/article-to-note`
 - `POST /api/ai/voice-clean`
 - `POST /api/ai/chat`
+
+### B. 异步 job
+
+- `POST /api/ai/jobs/briefing`
+- `POST /api/ai/jobs/podcast`
+- `GET /api/ai/jobs/:jobId`
+- `GET /api/ai/artifacts/:artifactId`
 
 ### 推荐返回 schema 示例
 
@@ -383,6 +430,28 @@ backend/
 }
 ```
 
+#### `POST /api/ai/jobs/podcast`
+
+```json
+{
+  "jobId": "job_123",
+  "type": "podcast.generate",
+  "status": "queued",
+  "estimatedSeconds": 45
+}
+```
+
+#### `GET /api/ai/jobs/:jobId`
+
+```json
+{
+  "jobId": "job_123",
+  "type": "podcast.generate",
+  "status": "succeeded",
+  "artifactId": "podcast_456"
+}
+```
+
 ## MVP 阶段 AI 功能优先级
 
 ### P0：一定要做
@@ -398,14 +467,23 @@ backend/
 1. `quick-read`
 2. `explore-questions`
 
-这两项最能体现 EchoNote 的产品差异。
+这两项最能体现 EchoNote 的产品差异，也最适合先做成稳定的同步 action。
 
 ### P2：可以后做
+
+1. `briefing.generate`
+2. `podcast.generate`
+3. artifact 持久化与回看入口
+
+这两项不建议继续按“前端本地临时功能”推进，而应该直接按 `job + artifact` 来做。
+
+### P3：可以后做
 
 1. 标签推荐
 2. 待办提取独立接口
 3. 多文档对比
 4. 主题资产自动归档
+5. MCP / 外部 tools 扩展
 
 ## 语音输入的现实判断
 
@@ -426,7 +504,7 @@ backend/
 
 先把“顺手可用”做出来更重要。
 
-## 接下来 4 个 Sprint 建议
+## 接下来 5 个 Sprint 建议
 
 ### Sprint 1：服务端上线
 
@@ -455,7 +533,7 @@ backend/
 - 相同请求体可以切 provider
 - 前端完全无感
 
-### Sprint 3：固定动作接口
+### Sprint 3：同步 action 完整化
 
 目标：
 
@@ -470,13 +548,28 @@ backend/
 - 语音输入能走独立接口
 - 文章页可一键转笔记
 
-### Sprint 4：Demo 稳定化
+### Sprint 4：异步 job / artifact 骨架
+
+目标：
+
+- 补齐 `briefing.generate`
+- 补齐 `podcast.generate`
+- 后端能记录 job 状态和 artifact 引用
+
+验收：
+
+- 首页简报可以走真实 job
+- 播客生成不再只是端上 mock
+- 资料库或详情页可以回看生成产物
+
+### Sprint 5：Demo 稳定化
 
 目标：
 
 - loading / error 状态可接受
 - fallback 明确
 - 语音与 AI 链路在演示中稳定
+- action / job 追踪信息可回看
 
 验收：
 
@@ -489,11 +582,13 @@ backend/
 
 1. `git pull origin feat/mobile-ia-v02`
 2. 看这几份文档：
+   - [docs/ai-assistant-architecture.md](/Users/bytedance/Echonote/docs/ai-assistant-architecture.md)
    - [docs/mvp-demo-roadmap.md](/Users/owenfff/EchoNote/docs/mvp-demo-roadmap.md)
    - [docs/backend-service-plan.md](/Users/owenfff/EchoNote/docs/backend-service-plan.md)
    - [docs/adr-001-data-and-backend-architecture.md](/Users/owenfff/EchoNote/docs/adr-001-data-and-backend-architecture.md)
 3. 优先继续 `AI provider 抽象`
-4. 再决定先接 `Coze` 还是先上 `demo provider`
+4. 再补 `sync action` 和 `async job` 的边界
+5. 最后再决定先接 `Coze` 还是先上 `demo provider`
 
 ## 当前最务实的推荐
 
@@ -502,9 +597,10 @@ backend/
 1. 先把当前代码推上去
 2. Render 按双服务部署
 3. 后端先加 `demo provider`
-4. 再接 `coze provider`
-5. 最后再评估是否要把 `Qwen` 作为长期默认 provider
+4. 先补齐 `chat / voice-clean / article-to-note / quick-read / explore-questions`
+5. 再把 `briefing / podcast` 改成 job + artifact
+6. 最后再评估是否要先接 `coze provider`
 
 一句话说：
 
-`先把 EchoNote 的后端能力骨架做成可切换、可演示、可部署，再去追求最优模型。`
+`先把 EchoNote 的后端能力骨架做成可切换、可演示、可部署、可扩展，再去追求最优模型。`

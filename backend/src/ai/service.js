@@ -1,0 +1,140 @@
+const { createDemoProvider } = require('./providers/demo');
+const { createDashScopeProvider } = require('./providers/dashscope');
+const { createToolRegistry } = require('./tools');
+const { createArtifact, createJob, getArtifact, getJob, getLatestArtifactByType, updateJob } = require('./stores');
+
+function createAiService(config = {}) {
+  const toolRegistry = createToolRegistry();
+  const providers = {
+    demo: createDemoProvider(),
+    dashscope: createDashScopeProvider(config.dashscope || {}),
+  };
+
+  function defaultProviderName() {
+    if (config.provider && providers[config.provider]) return config.provider;
+    return providers.dashscope.isConfigured() ? 'dashscope' : 'demo';
+  }
+
+  function getProvider(providerName) {
+    const resolvedName = providerName || defaultProviderName();
+    const provider = providers[resolvedName];
+    if (!provider) {
+      const error = new Error(`Unsupported AI provider: ${resolvedName}`);
+      error.code = 'UNSUPPORTED_PROVIDER';
+      throw error;
+    }
+    if (resolvedName !== 'demo' && !provider.isConfigured()) {
+      const error = new Error(`AI provider "${resolvedName}" is not configured`);
+      error.code = 'AI_NOT_CONFIGURED';
+      throw error;
+    }
+    return provider;
+  }
+
+  async function enqueueJob(type, artifactType, payload = {}) {
+    const provider = getProvider(payload.provider);
+    const job = createJob({ type, provider: provider.name, input: payload });
+
+    Promise.resolve()
+      .then(async () => {
+        updateJob(job.id, { status: 'running', startedAt: new Date().toISOString() });
+        const generator =
+          type === 'briefing.generate' ? provider.generateBriefing.bind(provider) : provider.generatePodcast.bind(provider);
+        const data = await generator(payload);
+        const artifact = createArtifact({
+          type: artifactType,
+          title: data.title,
+          provider: provider.name,
+          jobId: job.id,
+          data,
+          meta: {
+            sourceCount: data.sourceCount || (Array.isArray(payload.items) ? payload.items.length : undefined),
+          },
+        });
+
+        updateJob(job.id, {
+          status: 'succeeded',
+          artifactId: artifact.id,
+          finishedAt: new Date().toISOString(),
+        });
+      })
+      .catch((error) => {
+        updateJob(job.id, {
+          status: 'failed',
+          error: {
+            code: error.code || 'AI_JOB_FAILED',
+            message: error.message || 'AI job failed',
+          },
+          finishedAt: new Date().toISOString(),
+        });
+      });
+
+    return {
+      jobId: job.id,
+      type: job.type,
+      status: job.status,
+      provider: provider.name,
+      estimatedSeconds: type === 'podcast.generate' ? 45 : 20,
+    };
+  }
+
+  return {
+    getHealth() {
+      return {
+        provider: defaultProviderName(),
+        configured: providers.dashscope.isConfigured(),
+        availableProviders: Object.keys(providers),
+        ttsProvider: config.ttsProvider || 'demo',
+        tools: toolRegistry.list().map((tool) => tool.id),
+      };
+    },
+    async chat(payload = {}) {
+      const provider = getProvider(payload.provider);
+      const result = await provider.chat(payload);
+      return {
+        ...result,
+        provider: provider.name,
+      };
+    },
+    async quickRead(payload = {}) {
+      const provider = getProvider(payload.provider);
+      return provider.quickRead(payload);
+    },
+    async exploreQuestions(payload = {}) {
+      const provider = getProvider(payload.provider);
+      return provider.exploreQuestions(payload);
+    },
+    async articleToNote(payload = {}) {
+      const provider = getProvider(payload.provider);
+      return provider.articleToNote(payload);
+    },
+    async voiceClean(payload = {}) {
+      const provider = getProvider(payload.provider);
+      return provider.voiceClean(payload);
+    },
+    async createBriefingJob(payload = {}) {
+      return enqueueJob('briefing.generate', 'briefing', payload);
+    },
+    async createPodcastJob(payload = {}) {
+      return enqueueJob('podcast.generate', 'podcast', payload);
+    },
+    getJob(jobId) {
+      return getJob(jobId);
+    },
+    getArtifact(artifactId) {
+      return getArtifact(artifactId);
+    },
+    getLatestBriefing() {
+      return getLatestArtifactByType('briefing');
+    },
+    getPodcast(artifactId) {
+      const artifact = getArtifact(artifactId);
+      if (!artifact || artifact.type !== 'podcast') return null;
+      return artifact;
+    },
+  };
+}
+
+module.exports = {
+  createAiService,
+};
