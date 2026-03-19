@@ -1,8 +1,8 @@
 import { ChatMessage } from '../types';
+import { getBackendUrl } from './backend-config';
 
 const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/api/v1';
 const DEFAULT_MODEL = 'qwen-max';
-const AI_PROXY_URL = process.env.EXPO_PUBLIC_BACKEND_URL ? `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/ai/chat` : '';
 
 export interface ChatOptions {
   model?: string;
@@ -26,13 +26,14 @@ export class BailianChatError extends Error {
 }
 
 async function chatViaBackend(messages: ChatMessage[], options: ChatOptions): Promise<ChatResponse> {
-  if (!AI_PROXY_URL) {
-    throw new BailianChatError('缺少 EXPO_PUBLIC_BACKEND_URL', 'MISSING_BACKEND_URL');
+  const backendUrl = await getBackendUrl();
+  if (!backendUrl) {
+    throw new BailianChatError('缺少后端地址', 'MISSING_BACKEND_URL');
   }
 
   let response: Response;
   try {
-    response = await fetch(AI_PROXY_URL, {
+    response = await fetch(`${backendUrl}/api/ai/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -110,12 +111,10 @@ export async function chat(messages: ChatMessage[], options: ChatOptions = {}): 
     ? [{ role: 'system', content: options.systemPrompt } as ChatMessage, ...messages]
     : messages;
 
-  if (AI_PROXY_URL) {
-    try {
-      return await chatViaBackend(messages, options);
-    } catch (error: any) {
-      if (!process.env.EXPO_PUBLIC_BAILIAN_API_KEY) throw error;
-    }
+  try {
+    return await chatViaBackend(messages, options);
+  } catch (error: any) {
+    if (!process.env.EXPO_PUBLIC_BAILIAN_API_KEY) throw error;
   }
 
   return chatDirect(messages, options, requestMessages);
