@@ -68,6 +68,8 @@ function createProviderError(message, code = 'AI_PROVIDER_ERROR', cause) {
   return error;
 }
 
+const REQUIRED_WORKFLOW_KEYS = ['quickRead', 'explore', 'voiceClean', 'briefing', 'podcast'];
+
 function createCozeProvider(config = {}) {
   const token = config.token || '';
   const baseUrl = config.baseUrl || COZE_CN_BASE_URL;
@@ -76,7 +78,7 @@ function createCozeProvider(config = {}) {
   let client = null;
 
   function isConfigured() {
-    return Boolean(token && chatBotId && Object.values(workflows).filter(Boolean).length >= 6);
+    return Boolean(token && chatBotId && REQUIRED_WORKFLOW_KEYS.every((key) => workflows[key]));
   }
 
   function getClient() {

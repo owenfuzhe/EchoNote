@@ -22,22 +22,22 @@ MVP 阶段不要做一个“大而全”的 Coze workflow。
 建议拆成：
 
 1. 一个 `chat bot`
-2. 六个 workflow
+2. 五个 workflow
 
 也就是：
 
 - `chat`
 - `quick-read`
 - `explore-questions`
-- `article-to-note`
 - `voice-clean`
 - `briefing.generate`
 - `podcast.generate`
+- `article-to-note` 暂时不作为当前 MVP 必配项，后续再补
 
 其中：
 
 - `chat` 走 `Coze Bot Chat`
-- 其余 6 个能力走 `Coze Workflow`
+- 其余 5 个核心能力走 `Coze Workflow`
 
 ## 为什么 chat 不建议做成 workflow
 
@@ -51,7 +51,8 @@ MVP 阶段不要做一个“大而全”的 Coze workflow。
 所以建议：
 
 - `chat`：一个专门的 Coze Bot
-- `quick-read / explore / article-to-note / voice-clean / briefing / podcast`：一个能力一个 workflow
+- `quick-read / explore / voice-clean / briefing / podcast`：一个能力一个 workflow
+- `article-to-note`：先保留为后续可选 workflow
 
 ## 推荐环境变量
 
@@ -63,10 +64,10 @@ MVP 阶段不要做一个“大而全”的 Coze workflow。
 - `COZE_BOT_ID_CHAT`
 - `COZE_WORKFLOW_QUICK_READ`
 - `COZE_WORKFLOW_EXPLORE`
-- `COZE_WORKFLOW_ARTICLE_TO_NOTE`
 - `COZE_WORKFLOW_VOICE_CLEAN`
 - `COZE_WORKFLOW_BRIEFING`
 - `COZE_WORKFLOW_PODCAST`
+- `COZE_WORKFLOW_ARTICLE_TO_NOTE`（可选，后续再接）
 
 ## 你需要提供给我的信息
 
@@ -77,10 +78,13 @@ MVP 阶段不要做一个“大而全”的 Coze workflow。
 3. `COZE_BOT_ID_CHAT`
 4. `COZE_WORKFLOW_QUICK_READ`
 5. `COZE_WORKFLOW_EXPLORE`
-6. `COZE_WORKFLOW_ARTICLE_TO_NOTE`
-7. `COZE_WORKFLOW_VOICE_CLEAN`
-8. `COZE_WORKFLOW_BRIEFING`
-9. `COZE_WORKFLOW_PODCAST`
+6. `COZE_WORKFLOW_VOICE_CLEAN`
+7. `COZE_WORKFLOW_BRIEFING`
+8. `COZE_WORKFLOW_PODCAST`
+
+可选：
+
+9. `COZE_WORKFLOW_ARTICLE_TO_NOTE`
 
 如果你不确定 `COZE_API_BASE`：
 
@@ -188,16 +192,17 @@ MVP 阶段不要做一个“大而全”的 Coze workflow。
 | `chat` | bot | `Pro` | 如果预算很紧可以先用 `Lite` | 否 |
 | `quick-read` | workflow | `Lite` | 结果太平时升到 `Pro` | 否 |
 | `explore-questions` | workflow | `Pro` | 无 | 否 |
-| `article-to-note` | workflow | `Pro` | 单篇短内容可试 `Lite` | 否 |
 | `voice-clean` | workflow | `Lite` | 复杂口述再升 `Pro` | 否 |
 | `briefing.generate` | workflow | `Lite -> Pro` | 也可先单节点 `Pro` | 是 |
 | `podcast.generate` | workflow | `Lite -> Pro` | 也可先单节点 `Pro` | 是 |
+| `article-to-note` | workflow（可选） | `Pro` | 单篇短内容可试 `Lite` | 否 |
 
 如果你想先极简起步，我建议：
 
-1. `chat / explore / article-to-note / briefing / podcast` 用 `Pro`
+1. `chat / explore / briefing / podcast` 用 `Pro`
 2. `quick-read / voice-clean` 用 `Lite`
-3. 等真实效果稳定后，再把 `briefing / podcast` 改成两段式
+3. `article-to-note` 先不配，等需要“结构化保存笔记”时再补
+4. 等真实效果稳定后，再把 `briefing / podcast` 改成两段式
 
 ## Prompt 设计原则
 
@@ -804,8 +809,8 @@ System Prompt：
 
 - `quick-read`
 - `explore-questions`
-- `article-to-note`
 - `voice-clean`
+- `article-to-note`（后续可选）
 
 推荐结构：
 
@@ -836,20 +841,21 @@ System Prompt：
 
 1. 先做 `chat bot`
 2. 再做 `quick-read`
-3. 再做 `article-to-note`
-4. 再做 `explore-questions`
-5. 再做 `voice-clean`
-6. 最后做 `briefing.generate`
-7. 最后做 `podcast.generate`
+3. 再做 `explore-questions`
+4. 再做 `voice-clean`
+5. 最后做 `briefing.generate`
+6. 最后做 `podcast.generate`
+7. `article-to-note` 放到下一阶段补
 
 原因：
 
 - `chat` 最容易直接被用户感知
-- `quick-read` 和 `article-to-note` 最能体现“读完就有结构化产出”
+- `quick-read` 最能体现“读完就马上有结果”
 - `briefing` 和 `podcast` 最重，应该放后面
+- `article-to-note` 更像“保存沉淀”增强项，不是当前 MVP 阻塞
 
 ## 一句话结论
 
 如果 EchoNote 先接 Coze，最稳的做法不是“一个万能 workflow”，而是：
 
-`1 个 chat bot + 6 个固定 schema workflow + 后端统一做 provider 抽象和结果校验`
+`1 个 chat bot + 5 个固定 schema workflow + 后端统一做 provider 抽象和结果校验`
