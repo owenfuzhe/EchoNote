@@ -39,9 +39,21 @@ function safeParseJson(text = '') {
 
 function unwrapWorkflowPayload(parsed) {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return parsed;
-  if (parsed.output && typeof parsed.output === 'object' && !Array.isArray(parsed.output)) return parsed.output;
-  if (parsed.result && typeof parsed.result === 'object' && !Array.isArray(parsed.result)) return parsed.result;
-  if (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data)) return parsed.data;
+  if (typeof parsed.output === 'string') {
+    const next = safeParseJson(parsed.output);
+    if (next) return unwrapWorkflowPayload(next);
+  }
+  if (parsed.output && typeof parsed.output === 'object' && !Array.isArray(parsed.output)) return unwrapWorkflowPayload(parsed.output);
+  if (typeof parsed.result === 'string') {
+    const next = safeParseJson(parsed.result);
+    if (next) return unwrapWorkflowPayload(next);
+  }
+  if (parsed.result && typeof parsed.result === 'object' && !Array.isArray(parsed.result)) return unwrapWorkflowPayload(parsed.result);
+  if (typeof parsed.data === 'string') {
+    const next = safeParseJson(parsed.data);
+    if (next) return unwrapWorkflowPayload(next);
+  }
+  if (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data)) return unwrapWorkflowPayload(parsed.data);
   return parsed;
 }
 
