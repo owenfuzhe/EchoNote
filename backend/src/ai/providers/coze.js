@@ -37,6 +37,14 @@ function safeParseJson(text = '') {
   return null;
 }
 
+function unwrapWorkflowPayload(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return parsed;
+  if (parsed.output && typeof parsed.output === 'object' && !Array.isArray(parsed.output)) return parsed.output;
+  if (parsed.result && typeof parsed.result === 'object' && !Array.isArray(parsed.result)) return parsed.result;
+  if (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data)) return parsed.data;
+  return parsed;
+}
+
 function toWorkflowItems(payload = {}) {
   return buildSourceItems(payload).map((item) => ({
     id: item.id,
@@ -122,7 +130,7 @@ function createCozeProvider(config = {}) {
       parameters,
     });
 
-    const parsed = safeParseJson(result?.data);
+    const parsed = unwrapWorkflowPayload(safeParseJson(result?.data));
     if (parsed && typeof parsed === 'object') {
       return {
         parsed,
