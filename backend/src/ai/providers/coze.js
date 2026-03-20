@@ -54,6 +54,13 @@ function toWorkflowItems(payload = {}) {
   }));
 }
 
+function buildWorkflowParameters(parameters = {}) {
+  return {
+    ...parameters,
+    input: parameters,
+  };
+}
+
 function createProviderError(message, code = 'AI_PROVIDER_ERROR', cause) {
   const error = new Error(message);
   error.code = code;
@@ -127,7 +134,7 @@ function createCozeProvider(config = {}) {
     const sdk = getClient();
     const result = await sdk.workflows.runs.create({
       workflow_id: workflowId,
-      parameters,
+      parameters: buildWorkflowParameters(parameters),
     });
 
     const parsed = unwrapWorkflowPayload(safeParseJson(result?.data));

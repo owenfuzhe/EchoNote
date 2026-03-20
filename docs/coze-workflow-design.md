@@ -93,6 +93,14 @@ MVP 阶段不要做一个“大而全”的 Coze workflow。
 
 为了让后端直接对接，你在 Coze Workflow 里最好按下面的输入参数名配置：
 
+补充说明：
+
+- Coze workflow 内部常见的是默认读取一个 `input` object
+- EchoNote 后端现在会同时传：
+  - 顶层字段
+  - `input` 对象
+- 所以你在 Coze 节点里优先用 `input.title`、`input.content`、`input.topic`、`input.items` 这类路径最稳
+
 ### quick-read
 
 输入参数：
