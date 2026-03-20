@@ -190,13 +190,17 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   const contextTitle = title.trim() || note?.title || '未命名笔记';
   const contextBody = plainContent.trim() || richTextToPlainText(note?.content || '');
   const articleTabOptions = useMemo(() => {
-    const options: Array<{ key: DocumentTab; label: string }> = [{ key: 'article', label: '文章' }];
+    const options: Array<{ key: DocumentTab; label: string }> = hasSnapshot
+      ? [
+          { key: 'snapshot', label: '正文' },
+          { key: 'article', label: '纯文本' },
+        ]
+      : [{ key: 'article', label: '正文' }];
     if (hasSource) options.push({ key: 'source', label: '原网页' });
-    if (hasSnapshot) options.push({ key: 'snapshot', label: '快照' });
     return options;
   }, [hasSnapshot, hasSource]);
   const activeArticleTabLabel = useMemo(() => {
-    return articleTabOptions.find((option) => option.key === activeTab)?.label || '文章';
+    return articleTabOptions.find((option) => option.key === activeTab)?.label || articleTabOptions[0]?.label || '正文';
   }, [activeTab, articleTabOptions]);
   const noteUpdatedLabel = useMemo(() => {
     if (!note?.updatedAt) return '刚刚';
@@ -213,10 +217,10 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
     setContent(nextEditorContent);
 
     setIsCreatingDraft(false);
-    setActiveTab('article');
+    setActiveTab(note?.type === 'link' && note?.snapshotHtml?.trim() ? 'snapshot' : 'article');
     setShowMoreMenu(false);
     setShowArticleTabPicker(false);
-  }, [draftNote?.content, draftNote?.title, note?.content, note?.id, note?.title]);
+  }, [draftNote?.content, draftNote?.title, note?.content, note?.id, note?.snapshotHtml, note?.title, note?.type]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';

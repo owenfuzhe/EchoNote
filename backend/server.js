@@ -101,6 +101,24 @@ function normalizeXiaohongshuUrl(rawUrl = '') {
   }
 }
 
+function proxyWechatImageHtml(html = '', req) {
+  const input = String(html || '').trim();
+  if (!input) return '';
+
+  const $ = cheerio.load(input, {}, false);
+  $('img').each((_, el) => {
+    const $img = $(el);
+    const src = $img.attr('src') || $img.attr('data-src');
+    if (!src) return;
+
+    const proxyUrl = `${req.protocol}://${req.get('host')}/api/proxy/wechat-image?url=${encodeURIComponent(src)}`;
+    $img.attr('src', proxyUrl);
+    $img.removeAttr('data-src');
+  });
+
+  return $.html() || input;
+}
+
 async function fetchFromParser(endpoint, payload) {
   return parserClient.request(endpoint, payload);
 }
@@ -499,18 +517,10 @@ app.post('/api/fetch/wechat', async (req, res) => {
     const parserData = await fetchFromParser('/api/parser/wechat', { url });
 
     let content = parserData.content || '';
+    const snapshotHtml = proxyWechatImageHtml(parserData.raw_html || parserData.cleaned_html || '', req);
 
     if (!plain_text && content) {
-      const $ = cheerio.load(`<div id="__wechat_content__">${content}</div>`);
-      $('#__wechat_content__ img').each((_, el) => {
-        const $img = $(el);
-        const src = $img.attr('src') || $img.attr('data-src');
-        if (!src) return;
-        const proxyUrl = `${req.protocol}://${req.get('host')}/api/proxy/wechat-image?url=${encodeURIComponent(src)}`;
-        $img.attr('src', proxyUrl);
-        $img.removeAttr('data-src');
-      });
-      content = $('#__wechat_content__').html() || content;
+      content = proxyWechatImageHtml(content, req);
     }
 
     if (plain_text) {
@@ -525,7 +535,7 @@ app.post('/api/fetch/wechat', async (req, res) => {
       url: parserData.url || url,
       cover_image: parserData.cover_image,
       source_webpage: parserData.url || url,
-      snapshot_html: parserData.raw_html || parserData.cleaned_html || ''
+      snapshot_html: snapshotHtml
     });
   } catch (error) {
     console.error('WeChat fetch error:', error);
