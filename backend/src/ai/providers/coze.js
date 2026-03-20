@@ -168,7 +168,6 @@ function createCozeProvider(config = {}) {
       const response = await sdk.chat.createAndPoll({
         bot_id: chatBotId,
         user_id: String(userId),
-        auto_save_history: false,
         additional_messages: toCozeMessages(messages, options),
       });
 
