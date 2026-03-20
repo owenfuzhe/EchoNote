@@ -414,7 +414,7 @@ System Prompt：
 你的任务不是总结原文，而是把“下一步该追什么问题”提出来。
 
 输入格式说明：
-- 你会收到以下字段中的一个或多个：
+- 用户的输入是{{input}}，其中可能包含：
   - title: string
   - topic: string
   - content: string
@@ -423,7 +423,7 @@ System Prompt：
 
 输出格式说明：
 - 你必须只返回 JSON object
-- 输出格式固定为：
+- output格式示例为：
 {
   "topic": "string",
   "hook": "string",
@@ -494,7 +494,7 @@ System Prompt：
 你的任务是把文章、网页或长文本整理成一篇“以后值得回看”的知识笔记。
 
 输入格式说明：
-- 你会收到以下字段中的一个或多个：
+- 用户的输入是{{input}}，其中可能包含：
   - title: string
   - content: string
   - sourceUrl: string
@@ -504,7 +504,7 @@ System Prompt：
 
 输出格式说明：
 - 你必须只返回 JSON object
-- 输出格式固定为：
+- output格式示例为：
 {
   "title": "string",
   "summary": "string",
@@ -572,14 +572,14 @@ System Prompt：
 你的任务是把一段口语化、可能混乱的转写结果，整理成“可读、可保存、可继续处理”的文本。
 
 输入格式说明：
-- 你会收到：
+- 用户的输入是{{input}}，其中可能包含：
   - title: string（可选）
   - transcript: string
 - transcript 可能包含口头禅、重复、碎片句、停顿词和不完整表达
 
 输出格式说明：
 - 你必须只返回 JSON object
-- 输出格式固定为：
+- output格式示例为：
 {
   "title": "string",
   "cleanedText": "string",
@@ -656,7 +656,7 @@ System Prompt：
 你不是逐篇摘要器，而是聚合分析器。
 
 输入格式说明：
-- 你会收到：
+- 用户的输入是{{input}}，其中可能包含：
   - title: string
   - items: [{ id, title, content, url }]
 - items 通常代表多篇文章、笔记或资料卡片
@@ -664,7 +664,7 @@ System Prompt：
 
 输出格式说明：
 - 你必须只返回 JSON object
-- 输出格式固定为：
+- output格式示例为：
 {
   "title": "string",
   "summary": "string",
@@ -753,7 +753,7 @@ System Prompt：
 目标不是写文章，而是写“听起来顺”的口播内容。
 
 输入格式说明：
-- 你会收到：
+- 用户的输入是{{input}}，其中可能包含：
   - title: string
   - voicePreset: string
   - items: [{ id, title, content, url }]
@@ -762,7 +762,7 @@ System Prompt：
 
 输出格式说明：
 - 你必须只返回 JSON object
-- 输出格式固定为：
+- output格式示例为：
 {
   "title": "string",
   "summary": "string",
