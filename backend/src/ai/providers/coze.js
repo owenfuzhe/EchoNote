@@ -9,6 +9,8 @@ const {
   clampText,
   collapseWhitespace,
   deriveTopic,
+  normalizePodcastSegments,
+  resolveSourceCount,
   stripMarkdown,
 } = require('../utils/text');
 
@@ -218,7 +220,7 @@ function createCozeProvider(config = {}) {
         summary: clampText(parsed.summary || `这组内容围绕 ${fallbackHeadline}，值得先快速理解核心判断。`, 120),
         bullets: Array.isArray(parsed.bullets) ? parsed.bullets.slice(0, 4).map((item) => clampText(item, 80)) : [],
         readMinutes: Number(parsed.readMinutes) || 3,
-        sourceCount: Number(parsed.sourceCount) || buildSourceItems(payload).length || 1,
+        sourceCount: resolveSourceCount(payload, parsed.sourceCount),
         provider: 'coze',
       };
     },
@@ -294,7 +296,7 @@ function createCozeProvider(config = {}) {
               keyPoint: clampText(section.keyPoint || '', 120),
             }))
           : [],
-        sourceCount: Number(parsed.sourceCount) || buildSourceItems(payload).length || 1,
+        sourceCount: resolveSourceCount(payload, parsed.sourceCount),
         readMinutes: Number(parsed.readMinutes) || 4,
         generatedAt: new Date().toISOString(),
       };
@@ -312,14 +314,9 @@ function createCozeProvider(config = {}) {
         summary: clampText(parsed.summary || `围绕 ${title} 的一段短播客脚本。`, 120),
         voicePreset: clampText(parsed.voicePreset || payload.voicePreset || 'default', 24),
         script: collapseWhitespace(parsed.script || ''),
-        segments: Array.isArray(parsed.segments)
-          ? parsed.segments.slice(0, 8).map((segment, index) => ({
-              heading: clampText(segment.heading || `段落 ${index + 1}`, 32),
-              text: clampText(segment.text || '', 180),
-            }))
-          : [],
+        segments: normalizePodcastSegments(parsed.segments),
         durationSeconds: Number(parsed.durationSeconds) || 60,
-        sourceCount: Number(parsed.sourceCount) || buildSourceItems(payload).length || 1,
+        sourceCount: resolveSourceCount(payload, parsed.sourceCount),
         generatedAt: new Date().toISOString(),
       };
     },

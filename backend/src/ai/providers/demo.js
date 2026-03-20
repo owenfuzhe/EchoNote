@@ -7,6 +7,7 @@ const {
   deriveTags,
   deriveTopic,
   estimateReadMinutes,
+  normalizePodcastSegments,
   pickSentences,
   stripMarkdown,
 } = require('../utils/text');
@@ -71,13 +72,14 @@ function buildPodcastData(payload = {}) {
       text: clampText('如果要继续跟进，最值得补的是一条相反观点和一条新来源。', 120),
     },
   ];
+  const normalizedSegments = normalizePodcastSegments(segments, { textMax: 120 });
 
   return {
     title: `播客：${title}`,
     summary: clampText(`围绕 ${title} 的一段短播客脚本，适合先做快速收听。`, 80),
     voicePreset: payload.voicePreset || 'default',
-    script: segments.map((segment) => `${segment.heading}：${segment.text}`).join('\n\n'),
-    segments,
+    script: normalizedSegments.map((segment) => `${segment.heading}：${segment.text}`).join('\n\n'),
+    segments: normalizedSegments,
     durationSeconds: Math.max(45, Math.ceil(stripMarkdown(joined).length / 7)),
     sourceCount: items.length,
     generatedAt: new Date().toISOString(),

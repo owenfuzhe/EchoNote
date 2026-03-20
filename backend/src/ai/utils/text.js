@@ -69,6 +69,32 @@ function buildSourceItems(payload = {}) {
   ];
 }
 
+function resolveSourceCount(payload = {}, reportedCount) {
+  const actualCount = buildSourceItems(payload).length;
+  if (actualCount > 0) return actualCount;
+
+  const normalized = Number(reportedCount);
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : 1;
+}
+
+function normalizePodcastSegments(segments = [], options = {}) {
+  const headingMax = options.headingMax || 32;
+  const textMax = options.textMax || 180;
+  if (!Array.isArray(segments)) return [];
+
+  return segments.slice(0, 8).map((segment, index) => {
+    const title = clampText(segment?.title || segment?.heading || `段落 ${index + 1}`, headingMax);
+    const content = clampText(segment?.content || segment?.text || '', textMax);
+
+    return {
+      title,
+      content,
+      heading: title,
+      text: content,
+    };
+  });
+}
+
 const TAG_PATTERNS = [
   [/gpu|显卡|算力/i, 'GPU'],
   [/finops|成本|预算|降本/i, '成本'],
@@ -125,6 +151,7 @@ function deriveTopic(payload = {}) {
 module.exports = {
   buildBullets,
   buildOutline,
+  normalizePodcastSegments,
   buildSourceItems,
   clampText,
   collapseWhitespace,
@@ -132,6 +159,7 @@ module.exports = {
   deriveTopic,
   estimateReadMinutes,
   pickSentences,
+  resolveSourceCount,
   splitSentences,
   stripMarkdown,
   unique,
