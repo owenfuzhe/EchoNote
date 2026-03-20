@@ -40,7 +40,13 @@ export class ExtractionEngine {
   }
 
   private extractMeta($: cheerio.CheerioAPI, url: string, rule?: DomainRule): ArticleMetadata {
-    const title = this.firstText($, [rule?.titleSelector, 'meta[property="og:title"]', 'title']);
+    const title = this.firstText($, [
+      rule?.titleSelector,
+      'meta[property="og:title"]',
+      'meta[name="twitter:title"]',
+      'title',
+      'h1',
+    ]);
     const author = this.firstText($, [rule?.authorSelector, '#js_name', 'meta[name="author"]', 'meta[property="article:author"]']);
     const description = this.firstAttr($, ['meta[property="og:description"]', 'meta[name="description"]'], 'content');
     const featuredImage = this.firstAttr($, ['meta[property="og:image"]'], 'content');
