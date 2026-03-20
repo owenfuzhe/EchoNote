@@ -1,4 +1,5 @@
 const { createDemoProvider } = require('./providers/demo');
+const { createCozeProvider } = require('./providers/coze');
 const { createDashScopeProvider } = require('./providers/dashscope');
 const { createToolRegistry } = require('./tools');
 const { createArtifact, createJob, getArtifact, getJob, getLatestArtifactByType, updateJob } = require('./stores');
@@ -7,11 +8,13 @@ function createAiService(config = {}) {
   const toolRegistry = createToolRegistry();
   const providers = {
     demo: createDemoProvider(),
+    coze: createCozeProvider(config.coze || {}),
     dashscope: createDashScopeProvider(config.dashscope || {}),
   };
 
   function defaultProviderName() {
     if (config.provider && providers[config.provider]) return config.provider;
+    if (providers.coze.isConfigured()) return 'coze';
     if (providers.dashscope.isConfigured()) return 'dashscope';
     return 'demo';
   }

@@ -25,6 +25,15 @@ const DEFAULT_OWNER_NAME = process.env.DEFAULT_OWNER_NAME || 'EchoNote Local Use
 const BAILIAN_API_KEY = process.env.BAILIAN_API_KEY || process.env.DASHSCOPE_API_KEY || '';
 const BAILIAN_BASE_URL = process.env.BAILIAN_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1';
 const BAILIAN_MODEL = process.env.BAILIAN_MODEL || 'qwen-max';
+const COZE_API_TOKEN = process.env.COZE_API_TOKEN || '';
+const COZE_API_BASE = process.env.COZE_API_BASE || '';
+const COZE_BOT_ID_CHAT = process.env.COZE_BOT_ID_CHAT || '';
+const COZE_WORKFLOW_QUICK_READ = process.env.COZE_WORKFLOW_QUICK_READ || '';
+const COZE_WORKFLOW_EXPLORE = process.env.COZE_WORKFLOW_EXPLORE || '';
+const COZE_WORKFLOW_ARTICLE_TO_NOTE = process.env.COZE_WORKFLOW_ARTICLE_TO_NOTE || '';
+const COZE_WORKFLOW_VOICE_CLEAN = process.env.COZE_WORKFLOW_VOICE_CLEAN || '';
+const COZE_WORKFLOW_BRIEFING = process.env.COZE_WORKFLOW_BRIEFING || '';
+const COZE_WORKFLOW_PODCAST = process.env.COZE_WORKFLOW_PODCAST || '';
 const AI_PROVIDER = process.env.AI_PROVIDER || '';
 const TTS_PROVIDER = process.env.TTS_PROVIDER || 'demo';
 const NOTE_TYPES = new Set(['voice', 'text', 'ai', 'link', 'file', 'image']);
@@ -32,6 +41,19 @@ const NOTE_TYPES = new Set(['voice', 'text', 'ai', 'link', 'file', 'image']);
 const aiService = createAiService({
   provider: AI_PROVIDER,
   ttsProvider: TTS_PROVIDER,
+  coze: {
+    token: COZE_API_TOKEN,
+    baseUrl: COZE_API_BASE,
+    chatBotId: COZE_BOT_ID_CHAT,
+    workflows: {
+      quickRead: COZE_WORKFLOW_QUICK_READ,
+      explore: COZE_WORKFLOW_EXPLORE,
+      articleToNote: COZE_WORKFLOW_ARTICLE_TO_NOTE,
+      voiceClean: COZE_WORKFLOW_VOICE_CLEAN,
+      briefing: COZE_WORKFLOW_BRIEFING,
+      podcast: COZE_WORKFLOW_PODCAST,
+    },
+  },
   dashscope: {
     apiKey: BAILIAN_API_KEY,
     baseUrl: BAILIAN_BASE_URL,

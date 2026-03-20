@@ -121,6 +121,7 @@
 可保留或补充：
 
 - `COZE_API_BASE=<你的 Coze API Base>`
+- `COZE_BOT_ID_CHAT=<bot id>`
 - `COZE_WORKFLOW_QUICK_READ=<workflow id>`
 - `COZE_WORKFLOW_EXPLORE=<workflow id>`
 - `COZE_WORKFLOW_ARTICLE_TO_NOTE=<workflow id>`

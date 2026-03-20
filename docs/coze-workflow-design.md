@@ -68,6 +68,95 @@ MVP 阶段不要做一个“大而全”的 Coze workflow。
 - `COZE_WORKFLOW_BRIEFING`
 - `COZE_WORKFLOW_PODCAST`
 
+## 你需要提供给我的信息
+
+等你在 Coze 平台上把 bot 和 workflows 配好后，最后只需要把下面这些值给我：
+
+1. `COZE_API_TOKEN`
+2. `COZE_API_BASE`
+3. `COZE_BOT_ID_CHAT`
+4. `COZE_WORKFLOW_QUICK_READ`
+5. `COZE_WORKFLOW_EXPLORE`
+6. `COZE_WORKFLOW_ARTICLE_TO_NOTE`
+7. `COZE_WORKFLOW_VOICE_CLEAN`
+8. `COZE_WORKFLOW_BRIEFING`
+9. `COZE_WORKFLOW_PODCAST`
+
+如果你不确定 `COZE_API_BASE`：
+
+- 中国区通常用 `COZE_CN_BASE_URL` 对应的地址
+- 国际区通常用 `COZE_COM_BASE_URL` 对应的地址
+
+我在代码里已经支持你显式传 `COZE_API_BASE`，所以你只要把控制台对应区域的 base 给我就行。
+
+## Workflow 参数约定
+
+为了让后端直接对接，你在 Coze Workflow 里最好按下面的输入参数名配置：
+
+### quick-read
+
+输入参数：
+
+- `title`
+- `content`
+- `topic`
+- `items`
+
+### explore-questions
+
+输入参数：
+
+- `title`
+- `topic`
+- `content`
+- `items`
+
+### article-to-note
+
+输入参数：
+
+- `title`
+- `content`
+- `sourceUrl`
+- `items`
+
+### voice-clean
+
+输入参数：
+
+- `title`
+- `transcript`
+
+### briefing.generate
+
+输入参数：
+
+- `title`
+- `items`
+
+### podcast.generate
+
+输入参数：
+
+- `title`
+- `voicePreset`
+- `items`
+
+其中 `items` 会是一个数组，每项结构是：
+
+```json
+{
+  "id": "item_1",
+  "title": "string",
+  "content": "string",
+  "url": "string"
+}
+```
+
+## Workflow 输出约定
+
+每个 workflow 的最终输出节点都建议直接返回一个 JSON object，不要返回 markdown，不要返回解释文本。
+
 ## 模型建议
 
 下面的模型建议是基于 EchoNote 当前能力形态做的推断，不是 Coze 官方强制名单。
