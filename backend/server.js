@@ -25,9 +25,6 @@ const DEFAULT_OWNER_NAME = process.env.DEFAULT_OWNER_NAME || 'EchoNote Local Use
 const BAILIAN_API_KEY = process.env.BAILIAN_API_KEY || process.env.DASHSCOPE_API_KEY || '';
 const BAILIAN_BASE_URL = process.env.BAILIAN_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1';
 const BAILIAN_MODEL = process.env.BAILIAN_MODEL || 'qwen-max';
-const XAI_API_KEY = process.env.XAI_API_KEY || process.env.GROK_API_KEY || '';
-const XAI_BASE_URL = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
-const XAI_MODEL = process.env.XAI_MODEL || 'grok-4-1-fast';
 const AI_PROVIDER = process.env.AI_PROVIDER || '';
 const TTS_PROVIDER = process.env.TTS_PROVIDER || 'demo';
 const NOTE_TYPES = new Set(['voice', 'text', 'ai', 'link', 'file', 'image']);
@@ -39,11 +36,6 @@ const aiService = createAiService({
     apiKey: BAILIAN_API_KEY,
     baseUrl: BAILIAN_BASE_URL,
     model: BAILIAN_MODEL,
-  },
-  xai: {
-    apiKey: XAI_API_KEY,
-    baseUrl: XAI_BASE_URL,
-    model: XAI_MODEL,
   },
 });
 

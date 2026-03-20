@@ -1,6 +1,5 @@
 const { createDemoProvider } = require('./providers/demo');
 const { createDashScopeProvider } = require('./providers/dashscope');
-const { createXaiProvider } = require('./providers/xai');
 const { createToolRegistry } = require('./tools');
 const { createArtifact, createJob, getArtifact, getJob, getLatestArtifactByType, updateJob } = require('./stores');
 
@@ -9,13 +8,11 @@ function createAiService(config = {}) {
   const providers = {
     demo: createDemoProvider(),
     dashscope: createDashScopeProvider(config.dashscope || {}),
-    xai: createXaiProvider(config.xai || {}),
   };
 
   function defaultProviderName() {
     if (config.provider && providers[config.provider]) return config.provider;
     if (providers.dashscope.isConfigured()) return 'dashscope';
-    if (providers.xai.isConfigured()) return 'xai';
     return 'demo';
   }
 

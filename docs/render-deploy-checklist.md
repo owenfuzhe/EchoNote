@@ -5,7 +5,7 @@
 当前建议分两阶段：
 
 1. 先用 `demo provider` 部署，验证单服务 MVP 链路
-2. 再补 `DashScope / 百炼` 或 `xAI / Grok` 的真实 key
+2. 再补 `DashScope / 百炼` 或 `Coze` 的真实 key / token
 
 ## 部署对象
 
@@ -57,7 +57,6 @@
 这时可以先不填：
 
 - `BAILIAN_API_KEY`
-- `XAI_API_KEY`
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
 - `DEEPSEEK_API_KEY`
@@ -66,7 +65,6 @@
 说明：
 
 - 不填 `BAILIAN_API_KEY` 时，AI 接口会走内置 `demo provider`
-- 不填 `XAI_API_KEY` 时，也不会启用 `xai provider`
 - 不填 `DATABASE_URL` 时，`notes` 相关接口不可用，但抓取和 AI demo 仍可验证
 
 ### 5. 阶段一验收
@@ -113,17 +111,22 @@
 - `/health` 返回 `aiProvider: "dashscope"`
 - AI 接口不再返回 demo 风格内容
 
-### 方案 B：xAI / Grok
+### 方案 B：Coze
 
-如果你更想先用 xAI，则把 `echonote-api` 的环境变量改成：
+如果你更想先用 Coze，则把 `echonote-api` 的环境变量改成：
 
-- `AI_PROVIDER=xai`
-- `XAI_API_KEY=<你的 xAI Key>`
+- `AI_PROVIDER=coze`
+- `COZE_API_TOKEN=<你的 Coze Token>`
 
 可保留或补充：
 
-- `XAI_BASE_URL=https://api.x.ai/v1`
-- `XAI_MODEL=grok-4-1-fast`
+- `COZE_API_BASE=<你的 Coze API Base>`
+- `COZE_WORKFLOW_QUICK_READ=<workflow id>`
+- `COZE_WORKFLOW_EXPLORE=<workflow id>`
+- `COZE_WORKFLOW_ARTICLE_TO_NOTE=<workflow id>`
+- `COZE_WORKFLOW_VOICE_CLEAN=<workflow id>`
+- `COZE_WORKFLOW_BRIEFING=<workflow id>`
+- `COZE_WORKFLOW_PODCAST=<workflow id>`
 
 切换后重新部署，再验证：
 
@@ -135,7 +138,7 @@
 
 预期：
 
-- `/health` 返回 `aiProvider: "xai"`
+- `/health` 返回 `aiProvider: "coze"`
 - AI 接口不再返回 demo 风格内容
 
 ## 可选：接数据库
