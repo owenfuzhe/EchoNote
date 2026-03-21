@@ -362,6 +362,7 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   const headerPillLabel = isArticle ? '来源文章' : `私人笔记 · ${syncState.label}`;
   const contextTitle = title.trim() || note?.title || '未命名笔记';
   const contextBody = plainContent.trim() || richTextToPlainText(note?.content || '');
+  const hideDocumentHero = activeTab === 'source';
   const articleTabOptions = useMemo(() => {
     const options: Array<{ key: DocumentTab; label: string }> = hasSnapshot
       ? [
@@ -685,28 +686,29 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
         )}
 
         <View style={[styles.sheet, isArticle ? styles.articleSheet : styles.noteSheet]}>
-          {isArticle && activeTab !== 'source' ? (
-            <View style={styles.articleHero}>
-              <Text style={styles.articleTitle}>{note?.title || '未命名文章'}</Text>
-            </View>
-          ) : (
-            <View style={styles.noteHero}>
-              <Text style={styles.noteMetaLine}>{isDraft ? '空白笔记' : `私人笔记 · 上次更新 ${noteUpdatedLabel}`}</Text>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                style={styles.titleInput}
-                placeholder="无标题"
-                placeholderTextColor="#94a3b8"
-                returnKeyType="done"
-                blurOnSubmit
-                onSubmitEditing={dismissEditorKeyboard}
-                onFocus={() => {
-                  setShowMoreMenu(false);
-                }}
-              />
-            </View>
-          )}
+          {!hideDocumentHero &&
+            (isArticle ? (
+              <View style={styles.articleHero}>
+                <Text style={styles.articleTitle}>{note?.title || '未命名文章'}</Text>
+              </View>
+            ) : (
+              <View style={styles.noteHero}>
+                <Text style={styles.noteMetaLine}>{isDraft ? '空白笔记' : `私人笔记 · 上次更新 ${noteUpdatedLabel}`}</Text>
+                <TextInput
+                  value={title}
+                  onChangeText={setTitle}
+                  style={styles.titleInput}
+                  placeholder="无标题"
+                  placeholderTextColor="#94a3b8"
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={dismissEditorKeyboard}
+                  onFocus={() => {
+                    setShowMoreMenu(false);
+                  }}
+                />
+              </View>
+            ))}
 
           {!isArticle && (hasSource || hasSnapshot) && (
             <View style={styles.tabs}>
