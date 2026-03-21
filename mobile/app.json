@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "EchoNote",
-    "slug": "echonote-mobile",
-    "owner": "crispytofu",
+    "slug": "echonote-lmlutm0a1zkx7c8mwqv6-",
+    "owner": "crispytofus-organization",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -11,11 +11,16 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.echonote.mobile",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSpeechRecognitionUsageDescription": "EchoNote 需要语音识别权限来把你的语音转换成可编辑文本。",
+        "NSMicrophoneUsageDescription": "EchoNote 需要使用麦克风来记录你的语音想法并生成笔记。"
       }
     },
     "android": {
-      "package": "com.echonote.mobile"
+      "package": "com.echonote.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       [
@@ -25,6 +30,11 @@
           "speechRecognitionPermission": "EchoNote 需要语音识别权限来把你的语音转换成可编辑文本。"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9ba735e3-7610-4a1f-ba2e-863da439234f"
+      }
+    }
   }
 }
