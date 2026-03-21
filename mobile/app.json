@@ -5,15 +5,25 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "scheme": "echonote",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.echonote.mobile"
+      "bundleIdentifier": "com.echonote.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.echonote.mobile"
     },
     "plugins": [
-      "expo-speech-recognition"
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "EchoNote 需要使用麦克风来记录你的语音想法并生成笔记。",
+          "speechRecognitionPermission": "EchoNote 需要语音识别权限来把你的语音转换成可编辑文本。"
+        }
+      ]
     ]
   }
 }
