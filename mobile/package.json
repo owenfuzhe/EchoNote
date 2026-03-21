@@ -7,7 +7,12 @@
     "start": "expo start",
     "ios": "expo run:ios",
     "android": "expo run:android",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "eas:build:dev": "eas build --platform ios --profile development",
+    "eas:build:preview": "eas build --platform ios --profile preview",
+    "eas:build:prod": "eas build --platform ios --profile production",
+    "eas:submit:ios": "eas submit --platform ios --profile production"
   },
   "dependencies": {
     "@10play/tentap-editor": "^1.0.1",
@@ -69,6 +74,7 @@
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
     "babel-preset-expo": "~54.0.10",
+    "eas-cli": "^18.4.0",
     "typescript": "~5.9.2"
   }
 }
