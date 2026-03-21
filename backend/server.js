@@ -517,7 +517,7 @@ app.post('/api/fetch/wechat', async (req, res) => {
     const parserData = await fetchFromParser('/api/parser/wechat', { url });
 
     let content = parserData.content || '';
-    const snapshotHtml = proxyWechatImageHtml(parserData.raw_html || parserData.cleaned_html || '', req);
+    const snapshotHtml = proxyWechatImageHtml(parserData.cleaned_html || parserData.raw_html || '', req);
 
     if (!plain_text && content) {
       content = proxyWechatImageHtml(content, req);

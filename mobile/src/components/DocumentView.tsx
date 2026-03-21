@@ -41,6 +41,91 @@ interface Props {
 type DocumentKind = 'article' | 'note';
 type ToolbarPanel = 'insert' | 'ai' | null;
 
+function extractWechatSnapshotBody(raw: string) {
+  const startMatchers = [
+    /<div[^>]+id=["']js_content["'][^>]*>/i,
+    /<div[^>]+class=["'][^"']*rich_media_content[^"']*["'][^>]*>/i,
+    /<div[^>]+id=["']img-content["'][^>]*>/i,
+  ];
+  const endMatchers = [
+    /<section[^>]+class=["'][^"']*original_area_primary[^"']*["'][^>]*>/i,
+    /<section[^>]+class=["'][^"']*wx_profile_card_inner[^"']*["'][^>]*>/i,
+    /<script[\s>]/i,
+  ];
+
+  for (const startMatcher of startMatchers) {
+    const startMatch = raw.match(startMatcher);
+    if (!startMatch || startMatch.index === undefined) continue;
+
+    const startIndex = startMatch.index + startMatch[0].length;
+    const rest = raw.slice(startIndex);
+    const endIndexes = endMatchers
+      .map((matcher) => rest.search(matcher))
+      .filter((index) => index >= 0)
+      .sort((a, b) => a - b);
+    const endIndex = endIndexes[0] ?? rest.length;
+    const fragment = rest.slice(0, endIndex).trim();
+    if (fragment) return fragment;
+  }
+
+  return raw;
+}
+
+function buildSnapshotDocument(snapshotHtml?: string) {
+  const raw = String(snapshotHtml || '').trim();
+  if (!raw) return '';
+  const content = /<html[\s>]/i.test(raw) || /<!doctype/i.test(raw) ? extractWechatSnapshotBody(raw) : raw;
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <style>
+      :root { color-scheme: light; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        color: #1f2937;
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+        line-height: 1.75;
+        font-size: 18px;
+      }
+      body {
+        padding: 20px 18px 96px;
+        word-break: break-word;
+      }
+      img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 16px 0;
+        border-radius: 12px;
+      }
+      figure, section, article, div, p {
+        max-width: 100%;
+      }
+      iframe, video {
+        max-width: 100%;
+      }
+      a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+      blockquote {
+        margin: 16px 0;
+        padding: 12px 14px;
+        border-left: 3px solid #cbd5e1;
+        background: #f8fafc;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>${content}</body>
+</html>`;
+}
+
 const EDITOR_THEME = {
   webview: {
     backgroundColor: 'transparent',
@@ -177,6 +262,7 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   const articleBodyText = useMemo(() => {
     return richTextToPlainText(content || note?.content || '').trim() || '暂无正文内容';
   }, [content, note?.content]);
+  const snapshotDocument = useMemo(() => buildSnapshotDocument(note?.snapshotHtml), [note?.snapshotHtml]);
   const syncState = useMemo(() => {
     if (isSaving || isCreatingDraft) {
       return { label: '保存中', tone: 'saving' as const };
@@ -577,8 +663,8 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
             </View>
           )}
 
-          {activeTab === 'snapshot' && note?.snapshotHtml && (
-            <WebView source={{ html: note.snapshotHtml }} style={styles.webview} />
+          {activeTab === 'snapshot' && snapshotDocument && (
+            <WebView source={{ html: snapshotDocument }} style={styles.webview} />
           )}
         </View>
 
