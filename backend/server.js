@@ -108,12 +108,19 @@ function proxyWechatImageHtml(html = '', req) {
   const $ = cheerio.load(input, {}, false);
   $('img').each((_, el) => {
     const $img = $(el);
-    const src = $img.attr('src') || $img.attr('data-src');
+    const dataSrc = $img.attr('data-src') || $img.attr('data-original') || '';
+    const rawSrc = $img.attr('src') || '';
+    const normalizedSrc = String(rawSrc).trim();
+    const normalizedDataSrc = String(dataSrc).trim();
+    const src =
+      normalizedDataSrc ||
+      (normalizedSrc && !normalizedSrc.startsWith('data:image/') ? normalizedSrc : '');
     if (!src) return;
 
     const proxyUrl = `${req.protocol}://${req.get('host')}/api/proxy/wechat-image?url=${encodeURIComponent(src)}`;
     $img.attr('src', proxyUrl);
-    $img.removeAttr('data-src');
+    $img.attr('data-src', proxyUrl);
+    $img.removeAttr('data-original');
   });
 
   return $.html() || input;

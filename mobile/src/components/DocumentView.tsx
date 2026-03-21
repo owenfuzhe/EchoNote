@@ -23,6 +23,7 @@ import {
   Undo2,
 } from 'lucide-react-native';
 import { chat } from '../services/bailian-chat';
+import { DEFAULT_BACKEND } from '../services/backend-config';
 import { saveContextTrace } from '../services/context-graph';
 import { createTodoItem, extractTodos } from '../services/todo-extractor';
 import { useNoteStore } from '../store/noteStore';
@@ -71,10 +72,58 @@ function extractWechatSnapshotBody(raw: string) {
   return raw;
 }
 
+function buildWechatImageProxyUrl(rawUrl: string) {
+  const input = String(rawUrl || '').trim();
+  if (!input) return '';
+
+  const normalized = input.startsWith('//') ? `https:${input}` : input;
+  try {
+    const parsed = new URL(normalized);
+    const hostname = parsed.hostname.toLowerCase();
+    if (!hostname.endsWith('qpic.cn') && !hostname.endsWith('weixin.qq.com')) {
+      return normalized;
+    }
+
+    const backendBase = DEFAULT_BACKEND.replace(/\/+$/, '');
+    return `${backendBase}/api/proxy/wechat-image?url=${encodeURIComponent(parsed.toString())}`;
+  } catch {
+    return normalized;
+  }
+}
+
+function normalizeWechatSnapshotImages(html: string) {
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const dataSrcMatch = tag.match(/\bdata-src=(["'])(.*?)\1/i);
+    const rawSrcMatch = tag.match(/\bsrc=(["'])(.*?)\1/i);
+    const candidate = dataSrcMatch?.[2] || rawSrcMatch?.[2] || '';
+    const proxyUrl = buildWechatImageProxyUrl(candidate);
+
+    if (!proxyUrl) return tag;
+
+    let nextTag = tag;
+    if (rawSrcMatch) {
+      nextTag = nextTag.replace(rawSrcMatch[0], `src="${proxyUrl}"`);
+    } else {
+      nextTag = nextTag.replace(/<img/i, `<img src="${proxyUrl}"`);
+    }
+
+    if (dataSrcMatch) {
+      nextTag = nextTag.replace(dataSrcMatch[0], `data-src="${proxyUrl}"`);
+    }
+
+    if (!/\bloading=/i.test(nextTag)) {
+      nextTag = nextTag.replace(/<img/i, '<img loading="eager"');
+    }
+
+    return nextTag;
+  });
+}
+
 function buildSnapshotDocument(snapshotHtml?: string) {
   const raw = String(snapshotHtml || '').trim();
   if (!raw) return '';
-  const content = /<html[\s>]/i.test(raw) || /<!doctype/i.test(raw) ? extractWechatSnapshotBody(raw) : raw;
+  const extracted = /<html[\s>]/i.test(raw) || /<!doctype/i.test(raw) ? extractWechatSnapshotBody(raw) : raw;
+  const content = normalizeWechatSnapshotImages(extracted);
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -86,28 +135,57 @@ function buildSnapshotDocument(snapshotHtml?: string) {
       html, body {
         margin: 0;
         padding: 0;
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
         background: #ffffff;
         color: #1f2937;
         font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
         line-height: 1.75;
         font-size: 18px;
       }
+      * {
+        box-sizing: border-box;
+      }
       body {
-        padding: 20px 18px 96px;
+        padding: 18px 20px 96px;
         word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      body * {
+        max-width: 100% !important;
+      }
+      #js_content,
+      .rich_media_content,
+      .rich_media_area_primary,
+      .rich_media_area_primary_inner,
+      .rich_media_wrp,
+      .rich_media_inner {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
       }
       img {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 16px 0;
+        width: auto !important;
+        max-width: 100% !important;
+        height: auto !important;
+        display: block !important;
+        margin: 18px 0 !important;
         border-radius: 12px;
       }
+      span, strong, em, section, article, div, p {
+        max-width: 100% !important;
+      }
       figure, section, article, div, p {
-        max-width: 100%;
+        max-width: 100% !important;
+      }
+      figure {
+        margin: 18px 0 !important;
       }
       iframe, video {
-        max-width: 100%;
+        max-width: 100% !important;
       }
       a {
         color: #2563eb;
@@ -119,6 +197,11 @@ function buildSnapshotDocument(snapshotHtml?: string) {
         border-left: 3px solid #cbd5e1;
         background: #f8fafc;
         color: #475569;
+      }
+      table {
+        display: block;
+        width: 100% !important;
+        overflow-x: auto;
       }
     </style>
   </head>
@@ -632,7 +715,7 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
           {activeTab === 'article' && (
             isArticle ? (
               <ScrollView
-                style={{ flex: 1 }}
+                style={styles.articleScroll}
                 contentContainerStyle={styles.articleScrollContent}
                 keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                 keyboardShouldPersistTaps="handled"
@@ -657,14 +740,30 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
           )}
 
           {activeTab === 'source' && note?.sourceUrl && (
-            <View style={{ flex: 1 }}>
+            <View style={styles.webviewWrap}>
               <Text style={styles.urlText}>{note.sourceUrl}</Text>
-              <WebView source={{ uri: note.sourceUrl }} style={styles.webview} />
+              <WebView
+                source={{ uri: note.sourceUrl }}
+                style={styles.webview}
+                originWhitelist={['*']}
+                bounces={false}
+                setSupportMultipleWindows={false}
+                showsHorizontalScrollIndicator={false}
+              />
             </View>
           )}
 
           {activeTab === 'snapshot' && snapshotDocument && (
-            <WebView source={{ html: snapshotDocument }} style={styles.webview} />
+            <View style={styles.webviewWrap}>
+              <WebView
+                source={{ html: snapshotDocument }}
+                style={styles.webview}
+                originWhitelist={['*']}
+                bounces={false}
+                setSupportMultipleWindows={false}
+                showsHorizontalScrollIndicator={false}
+              />
+            </View>
           )}
         </View>
 
@@ -1342,12 +1441,12 @@ const styles = StyleSheet.create({
   articleTabOptionText: { fontSize: 14, lineHeight: 20, color: '#111827', fontWeight: '500' },
   articleTabOptionTextActive: { fontWeight: '600' },
   sheet: { flex: 1, paddingHorizontal: 22, paddingTop: 20 },
-  articleSheet: { backgroundColor: '#ffffff' },
+  articleSheet: { flex: 1, backgroundColor: '#ffffff', paddingHorizontal: 0, paddingTop: 16 },
   noteSheet: { backgroundColor: '#ffffff' },
   noteHero: { marginBottom: 12 },
   noteMetaLine: { fontSize: 13, lineHeight: 18, color: '#94a3b8', marginBottom: 10 },
   titleInput: { fontSize: 36, lineHeight: 42, fontWeight: '700', color: '#111827', marginBottom: 10, letterSpacing: -1 },
-  articleHero: { marginBottom: 22 },
+  articleHero: { paddingHorizontal: 22, marginBottom: 22 },
   articleTitle: { fontSize: 33, lineHeight: 39, fontWeight: '700', color: '#111827', letterSpacing: -0.9 },
   noteToolbar: { flexDirection: 'row', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
   toolbarChip: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
@@ -1378,10 +1477,12 @@ const styles = StyleSheet.create({
     borderColor: '#e7ecf3',
     backgroundColor: '#f8fafc',
   },
-  articleScrollContent: { paddingBottom: 148 },
+  articleScroll: { flex: 1 },
+  articleScrollContent: { paddingHorizontal: 22, paddingBottom: 148 },
   articleBody: { fontSize: 18, lineHeight: 32, color: '#1f2937', paddingBottom: 4, letterSpacing: -0.12 },
-  urlText: { color: '#6b7280', fontSize: 12, marginBottom: 6 },
-  webview: { flex: 1, borderRadius: 12, overflow: 'hidden' },
+  urlText: { color: '#6b7280', fontSize: 12, marginBottom: 6, paddingHorizontal: 22 },
+  webviewWrap: { flex: 1, minHeight: 0 },
+  webview: { flex: 1, backgroundColor: '#ffffff' },
   chatPanel: { position: 'absolute', left: 14, right: 14, bottom: 96, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb' },
   chatHead: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
   chatTitle: { fontWeight: '700', color: '#111827' },
