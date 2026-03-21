@@ -80,6 +80,10 @@ function buildWechatImageProxyUrl(rawUrl: string) {
   try {
     const parsed = new URL(normalized);
     const hostname = parsed.hostname.toLowerCase();
+    if (hostname.endsWith('onrender.com') && parsed.protocol === 'http:') {
+      parsed.protocol = 'https:';
+      return parsed.toString();
+    }
     if (!hostname.endsWith('qpic.cn') && !hostname.endsWith('weixin.qq.com')) {
       return normalized;
     }
@@ -681,7 +685,7 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
         )}
 
         <View style={[styles.sheet, isArticle ? styles.articleSheet : styles.noteSheet]}>
-          {isArticle ? (
+          {isArticle && activeTab !== 'source' ? (
             <View style={styles.articleHero}>
               <Text style={styles.articleTitle}>{note?.title || '未命名文章'}</Text>
             </View>
@@ -741,7 +745,6 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
 
           {activeTab === 'source' && note?.sourceUrl && (
             <View style={styles.webviewWrap}>
-              <Text style={styles.urlText}>{note.sourceUrl}</Text>
               <WebView
                 source={{ uri: note.sourceUrl }}
                 style={styles.webview}
@@ -1480,7 +1483,6 @@ const styles = StyleSheet.create({
   articleScroll: { flex: 1 },
   articleScrollContent: { paddingHorizontal: 22, paddingBottom: 148 },
   articleBody: { fontSize: 18, lineHeight: 32, color: '#1f2937', paddingBottom: 4, letterSpacing: -0.12 },
-  urlText: { color: '#6b7280', fontSize: 12, marginBottom: 6, paddingHorizontal: 22 },
   webviewWrap: { flex: 1, minHeight: 0 },
   webview: { flex: 1, backgroundColor: '#ffffff' },
   chatPanel: { position: 'absolute', left: 14, right: 14, bottom: 96, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb' },

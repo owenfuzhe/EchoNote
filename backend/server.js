@@ -13,6 +13,7 @@ const { createAiRouter } = require('./src/ai/router');
 const { createParserClient } = require('./src/parser/client');
 
 const app = express();
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 8000;
 const WEB_PARSER_HOSTPORT = process.env.WEB_PARSER_HOSTPORT || '';
 const WEB_PARSER_URL = process.env.WEB_PARSER_URL || (WEB_PARSER_HOSTPORT ? `http://${WEB_PARSER_HOSTPORT}` : '');
@@ -117,7 +118,9 @@ function proxyWechatImageHtml(html = '', req) {
       (normalizedSrc && !normalizedSrc.startsWith('data:image/') ? normalizedSrc : '');
     if (!src) return;
 
-    const proxyUrl = `${req.protocol}://${req.get('host')}/api/proxy/wechat-image?url=${encodeURIComponent(src)}`;
+    const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
+    const protocol = forwardedProto || req.protocol || 'https';
+    const proxyUrl = `${protocol}://${req.get('host')}/api/proxy/wechat-image?url=${encodeURIComponent(src)}`;
     $img.attr('src', proxyUrl);
     $img.attr('data-src', proxyUrl);
     $img.removeAttr('data-original');
