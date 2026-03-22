@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronLeft, Loader, Send, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, Loader, Search, Send, Sparkles, SquarePen } from 'lucide-react-native';
 import { chat } from '../services/bailian-chat';
 import { useNoteStore } from '../store/noteStore';
-import { mobileType } from '../theme/typography';
 import { AppView, ChatMessage } from '../types';
 import { richTextToPreview } from '../utils/richText';
 
@@ -17,15 +16,15 @@ interface Props {
 }
 
 const GENERAL_ACTIONS = [
-  { id: 'summarize', label: '总结最近笔记', prompt: '请总结我最近几条笔记的核心要点，并给出 3 条行动建议。' },
-  { id: 'todo', label: '提取待办', prompt: '请从我最近笔记中提取待办事项，按高/中/低优先级分组。' },
-  { id: 'outline', label: '生成大纲', prompt: '基于我最近笔记内容，生成一个可执行的项目大纲。' },
+  { id: 'search', label: '搜索任何内容', prompt: '请基于我最近笔记，帮我找出当前最值得继续看的线索。' },
+  { id: 'brainstorm', label: '头脑风暴写作创意', prompt: '请基于我最近笔记，给我 5 个值得展开的写作方向。' },
+  { id: 'draft', label: '起草项目方案', prompt: '请把我最近笔记整理成一个可执行的项目方案初稿。' },
 ];
 
 const FOCUSED_ACTIONS = [
-  { id: 'focus-summary', label: '总结这篇', prompt: '请总结这篇内容的核心观点，并给出 3 条关键要点。' },
-  { id: 'focus-todo', label: '提取待办', prompt: '请从这篇内容里提取待办事项，如果没有明确待办就给出 3 条可执行下一步。' },
+  { id: 'focus-summary', label: '总结这篇内容', prompt: '请总结这篇内容的核心判断，并提炼 3 条关键信号。' },
   { id: 'focus-question', label: '继续追问', prompt: '请基于这篇内容，给我 3 个最值得继续追问的问题。' },
+  { id: 'focus-next', label: '整理下一步', prompt: '请基于这篇内容，给我 3 条最值得执行的下一步动作。' },
 ];
 
 export default function AIChatView({
@@ -64,15 +63,20 @@ export default function AIChatView({
     const recent = notes.slice(0, 5);
     if (!recent.length) return '暂无笔记内容，请先创建笔记。';
     return recent
-      .map((n, idx) => `${idx + 1}. ${n.title}\n${richTextToPreview(n.content, 280)}`)
+      .map((note, index) => `${index + 1}. ${note.title}\n${richTextToPreview(note.content, 240)}`)
       .join('\n\n');
   }, [focusedContext, notes]);
 
   const quickActions = focusedContext ? FOCUSED_ACTIONS : GENERAL_ACTIONS;
-  const headerTitle = focusedContext ? '当前内容助手' : 'AI 助手';
-  const headerSub = focusedContext ? `基于《${focusedContext.title}》的上下文` : '基于最近笔记上下文';
-  const welcomeTitle = focusedContext ? '围绕当前内容继续推进' : '开始一段对话';
-  const welcomeSub = focusedContext ? '先收束这篇内容，再决定下一步动作' : '你可以直接提问，或使用快捷指令';
+  const headerLabel = focusedContext ? '当前内容助手' : 'EchoNote AI';
+  const welcomeTitle = focusedContext ? '这篇内容，我们继续。' : '今日事，我来帮。';
+  const welcomeSub = focusedContext ? '围绕当前内容，先收束判断，再推进下一步。' : '你可以直接提问，也可以从下面这些动作开始。';
+
+  const resetConversation = () => {
+    setMessages([]);
+    setLoading(false);
+    setInput(initialInput?.trim() || '');
+  };
 
   const send = async (preset?: string) => {
     const text = (preset || input).trim();
@@ -89,90 +93,373 @@ export default function AIChatView({
         temperature: 0.7,
         systemPrompt: focusedContext
           ? `你是 EchoNote 移动端 AI 助手。请严格围绕当前这篇内容回答、总结或追问。\n\n当前内容：\n${context}`
-          : `你是 EchoNote 移动端 AI 助手。基于用户最近笔记回答问题。\n\n最近笔记：\n${context}`,
+          : `你是 EchoNote 移动端 AI 助手。请基于用户最近笔记帮助用户总结、拆解、追问和推进下一步。\n\n最近笔记：\n${context}`,
       });
       setMessages([...next, { role: 'assistant', content: resp.content || '我整理好了，但当前没有可展示内容。' }]);
-    } catch (e: any) {
-      setMessages([...next, { role: 'assistant', content: `请求失败：${e?.message || 'unknown error'}` }]);
+    } catch (error: any) {
+      setMessages([...next, { role: 'assistant', content: `请求失败：${error?.message || 'unknown error'}` }]);
     } finally {
       setLoading(false);
     }
   };
 
+  const sourceLabel = focusedContext ? '当前内容' : '最近笔记';
+
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+    >
       <View style={styles.header}>
-        <Pressable onPress={() => onNavigate('home')} style={styles.backBtn}><ChevronLeft size={24} color="#111827" /></Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{headerTitle}</Text>
-          <Text style={styles.sub}>{headerSub}</Text>
+        <Pressable onPress={() => onNavigate('home')} style={styles.iconBtn}>
+          <ChevronLeft size={22} color="#111827" />
+        </Pressable>
+
+        <View style={styles.headerPill}>
+          <Sparkles size={14} color="#c2410c" />
+          <Text style={styles.headerPillText}>{headerLabel}</Text>
         </View>
+
+        <Pressable onPress={resetConversation} style={styles.iconBtn}>
+          <SquarePen size={20} color="#6b7280" />
+        </Pressable>
       </View>
 
       {!messages.length ? (
-        <View style={styles.welcome}>
-          <View style={styles.logo}><Sparkles size={20} color="#7c3aed" /></View>
+        <View style={styles.welcomeWrap}>
+          <View style={styles.heroBadge}>
+            <Sparkles size={22} color="#111827" />
+          </View>
+
           <Text style={styles.welcomeTitle}>{welcomeTitle}</Text>
           <Text style={styles.welcomeSub}>{welcomeSub}</Text>
-          <View style={styles.quickWrap}>
-            {quickActions.map((item) => (
-              <Pressable key={item.id} style={styles.quickBtn} onPress={() => send(item.prompt)}>
-                <Text style={styles.quickText}>{item.label}</Text>
+
+          {focusedContext ? (
+            <View style={styles.contextCard}>
+              <Text style={styles.contextEyebrow}>当前上下文</Text>
+              <Text style={styles.contextTitle}>{focusedContext.title}</Text>
+              <Text numberOfLines={4} style={styles.contextBody}>
+                {focusedContext.body}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.actionsList}>
+            {quickActions.map((item, index) => (
+              <Pressable key={item.id} style={[styles.actionRow, index > 0 && styles.actionDivider]} onPress={() => send(item.prompt)}>
+                {index === 0 ? <Search size={18} color="#111827" /> : <Sparkles size={18} color="#111827" />}
+                <Text style={styles.actionText}>{item.label}</Text>
               </Pressable>
             ))}
           </View>
         </View>
       ) : (
-        <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 20, gap: 8 }}>
-          {messages.map((m, idx) => (
-            <View key={`${m.role}-${idx}`} style={[styles.bubble, m.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
-              <Text style={[styles.bubbleText, m.role === 'user' ? { color: 'white' } : { color: '#111827' }]}>{m.content}</Text>
+        <ScrollView
+          style={styles.messageList}
+          contentContainerStyle={styles.messageContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {focusedContext ? (
+            <View style={styles.contextInlineCard}>
+              <Text style={styles.contextInlineLabel}>围绕当前内容</Text>
+              <Text numberOfLines={2} style={styles.contextInlineTitle}>{focusedContext.title}</Text>
+            </View>
+          ) : null}
+
+          {messages.map((message, index) => (
+            <View key={`${message.role}-${index}`} style={[styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
+              <Text style={[styles.bubbleText, message.role === 'user' ? styles.userBubbleText : styles.assistantBubbleText]}>
+                {message.content}
+              </Text>
             </View>
           ))}
+
           {loading ? (
-            <View style={[styles.bubble, styles.assistantBubble, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+            <View style={[styles.bubble, styles.assistantBubble, styles.loadingBubble]}>
               <Loader size={14} color="#6b7280" />
-              <Text style={{ color: '#6b7280' }}>思考中...</Text>
+              <Text style={styles.loadingText}>正在整理回答…</Text>
             </View>
           ) : null}
         </ScrollView>
       )}
 
-      <View style={styles.inputBar}>
-        <TextInput
-          value={input}
-          onChangeText={setInput}
-          placeholder="询问、搜索或创作任何内容..."
-          style={styles.input}
-          multiline
-        />
-        <Pressable onPress={() => send()} style={[styles.sendBtn, (!input.trim() || loading) && { backgroundColor: '#d1d5db' }]} disabled={!input.trim() || loading}>
-          <Send size={16} color="white" />
-        </Pressable>
+      <View style={styles.composerDock}>
+        <View style={styles.composer}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="询问、搜索或创作任何内容..."
+            placeholderTextColor="#a8a29e"
+            style={styles.input}
+            multiline
+            textAlignVertical="top"
+          />
+
+          <View style={styles.composerFooter}>
+            <View style={styles.sourceChip}>
+              <Sparkles size={14} color="#6b7280" />
+              <Text style={styles.sourceChipText}>{sourceLabel}</Text>
+            </View>
+
+            <Pressable
+              onPress={() => send()}
+              style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
+              disabled={!input.trim() || loading}
+            >
+              <Send size={16} color="#ffffff" />
+            </Pressable>
+          </View>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f8fafc' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingHorizontal: 16, paddingBottom: 10 },
-  backBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
-  title: { ...mobileType.screenTitleCompact },
-  sub: { ...mobileType.screenMeta, marginTop: 2 },
-  welcome: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  logo: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
-  welcomeTitle: { ...mobileType.sectionTitle, marginTop: 12 },
-  welcomeSub: { marginTop: 6, fontSize: 13, color: '#6b7280' },
-  quickWrap: { marginTop: 14, width: '100%', gap: 8 },
-  quickBtn: { backgroundColor: 'white', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  quickText: { ...mobileType.cardTitle, color: '#374151', fontSize: 15, lineHeight: 20 },
-  list: { flex: 1, paddingHorizontal: 14, paddingTop: 8 },
-  bubble: { maxWidth: '86%', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: '#3b82f6' },
-  assistantBubble: { alignSelf: 'flex-start', backgroundColor: 'white', borderWidth: 1, borderColor: '#e5e7eb' },
-  bubbleText: { fontSize: 14, lineHeight: 20 },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb', backgroundColor: 'white' },
-  input: { flex: 1, maxHeight: 110, backgroundColor: '#f3f4f6', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: '#111827' },
-  sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#3b82f6', alignItems: 'center', justifyContent: 'center' },
+  root: {
+    flex: 1,
+    backgroundColor: '#fcfaf5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerPill: {
+    minHeight: 40,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f7efe7',
+    borderWidth: 1,
+    borderColor: '#f0e2d3',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerPillText: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#7c2d12',
+    fontWeight: '700',
+  },
+  welcomeWrap: {
+    flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: 44,
+  },
+  heroBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#ece7dd',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  welcomeTitle: {
+    marginTop: 22,
+    fontSize: 28,
+    lineHeight: 36,
+    letterSpacing: -0.4,
+    color: '#111827',
+    fontWeight: '700',
+  },
+  welcomeSub: {
+    marginTop: 10,
+    fontSize: 15,
+    lineHeight: 24,
+    color: '#6b7280',
+  },
+  contextCard: {
+    marginTop: 24,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#ede7da',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  contextEyebrow: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#8b7d6b',
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  contextTitle: {
+    marginTop: 8,
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#111827',
+    fontWeight: '700',
+  },
+  contextBody: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#6b7280',
+  },
+  actionsList: {
+    marginTop: 28,
+  },
+  actionRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  actionDivider: {
+    borderTopWidth: 1,
+    borderTopColor: '#ece7dd',
+  },
+  actionText: {
+    flex: 1,
+    fontSize: 17,
+    lineHeight: 24,
+    color: '#1f2937',
+    fontWeight: '500',
+  },
+  messageList: {
+    flex: 1,
+    paddingHorizontal: 18,
+  },
+  messageContent: {
+    paddingTop: 8,
+    paddingBottom: 18,
+    gap: 10,
+  },
+  contextInlineCard: {
+    marginBottom: 4,
+    borderRadius: 18,
+    backgroundColor: '#f7f4ee',
+    borderWidth: 1,
+    borderColor: '#ece7dd',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  contextInlineLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#8b7d6b',
+    fontWeight: '700',
+  },
+  contextInlineTitle: {
+    marginTop: 4,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  bubble: {
+    maxWidth: '88%',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  userBubble: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#111827',
+  },
+  assistantBubble: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#ece7dd',
+  },
+  bubbleText: {
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  userBubbleText: {
+    color: '#ffffff',
+  },
+  assistantBubbleText: {
+    color: '#111827',
+  },
+  loadingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#6b7280',
+  },
+  composerDock: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 18 : 14,
+    backgroundColor: '#fcfaf5',
+  },
+  composer: {
+    borderRadius: 26,
+    backgroundColor: '#f6f3ee',
+    borderWidth: 1,
+    borderColor: '#ebe5db',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
+  input: {
+    minHeight: 58,
+    maxHeight: 140,
+    fontSize: 17,
+    lineHeight: 24,
+    color: '#111827',
+    padding: 0,
+  },
+  composerFooter: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sourceChip: {
+    minHeight: 34,
+    borderRadius: 17,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e8e1d6',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sourceChipText: {
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  sendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendBtnDisabled: {
+    backgroundColor: '#d6d3d1',
+  },
 });

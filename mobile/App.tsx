@@ -383,7 +383,7 @@ export default function App() {
           )}
           {currentView === 'briefing' && <BriefingView onNavigate={handleNavigate} selectedNoteIds={briefingNoteIds} />}
 
-          {currentView !== 'document' && (
+          {currentView !== 'document' && currentView !== 'aiChat' && (
             <BottomNav
               currentView={currentView}
               onNavigate={setCurrentView}
