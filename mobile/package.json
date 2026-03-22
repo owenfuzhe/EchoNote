@@ -9,10 +9,10 @@
     "android": "expo run:android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "eas:build:dev": "npx eas build --platform ios --profile development",
-    "eas:build:preview": "npx eas build --platform ios --profile preview",
-    "eas:build:prod": "npx eas build --platform ios --profile production",
-    "eas:submit:ios": "npx eas submit --platform ios --profile production"
+    "eas:build:dev": "npx --yes eas-cli build --platform ios --profile development",
+    "eas:build:preview": "npx --yes eas-cli build --platform ios --profile preview",
+    "eas:build:prod": "npx --yes eas-cli build --platform ios --profile production",
+    "eas:submit:ios": "npx --yes eas-cli submit --platform ios --profile production"
   },
   "dependencies": {
     "@10play/tentap-editor": "^1.0.1",
