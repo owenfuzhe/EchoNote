@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ArrowLeft, BookOpen, ChevronRight, Link2, RefreshCw } from 'lucide-react-native';
 import { generateBriefing, getCachedBriefing, type BriefingArtifact } from '../services/ai-actions';
@@ -23,6 +23,7 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
   const { notes } = useNoteStore();
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+  const lastHandledReloadTickRef = useRef(0);
   const [briefingState, setBriefingState] = useState<{
     loading: boolean;
     stale: boolean;
@@ -48,10 +49,24 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
       const cached = await getCachedBriefing(pickedNotes);
       if (cancelled) return;
 
+      const manualRefresh = reloadTick !== lastHandledReloadTickRef.current;
+      lastHandledReloadTickRef.current = reloadTick;
+
+      if (cached && !manualRefresh) {
+        setBriefingState({
+          loading: false,
+          stale: false,
+          statusLabel: '',
+          error: '',
+          artifact: cached,
+        });
+        return;
+      }
+
       setBriefingState({
-        loading: true,
+        loading: !cached || manualRefresh,
         stale: Boolean(cached),
-        statusLabel: '正在提交给 AI',
+        statusLabel: cached ? '正在刷新当前简报' : '正在提交给 AI',
         error: '',
         artifact: cached,
       });

@@ -77,6 +77,7 @@ export default function HomeView({
   const [briefingAdjustOpen, setBriefingAdjustOpen] = useState(false);
   const [topicPickerOpen, setTopicPickerOpen] = useState(false);
   const [quickAiReloadTick, setQuickAiReloadTick] = useState(0);
+  const lastHandledQuickAiReloadTickRef = useRef(0);
   const [quickAiState, setQuickAiState] = useState<{
     noteId: string | null;
     loading: boolean;
@@ -146,7 +147,22 @@ export default function HomeView({
       const [cachedQuickRead, cachedExplore] = await Promise.all([getCachedQuickRead(note), getCachedNoteExplore(note)]);
       if (cancelled) return;
 
+      const manualRefresh = quickAiReloadTick !== lastHandledQuickAiReloadTickRef.current;
+      lastHandledQuickAiReloadTickRef.current = quickAiReloadTick;
       const hasCached = Boolean(cachedQuickRead || cachedExplore);
+
+      if (hasCached && !manualRefresh) {
+        setQuickAiState({
+          noteId: note.id,
+          loading: false,
+          stale: false,
+          error: '',
+          quickRead: cachedQuickRead,
+          explore: cachedExplore,
+        });
+        return;
+      }
+
       setQuickAiState({
         noteId: note.id,
         loading: true,
