@@ -4,6 +4,7 @@ import { ArrowLeft, BookOpen, ChevronRight, Link2, RefreshCw } from 'lucide-reac
 import { generateBriefing, getCachedBriefing, type BriefingArtifact } from '../services/ai-actions';
 import { getBriefingNotes } from '../services/briefing';
 import { useNoteStore } from '../store/noteStore';
+import { mobileType } from '../theme/typography';
 import { AppView } from '../types';
 
 interface Props {
@@ -128,18 +129,24 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
           </Pressable>
         </View>
 
+        <Text style={styles.eyebrow}>本期简报</Text>
+
         {!artifact && briefingState.loading ? (
-          <View style={styles.loadingCard}>
+          <View style={styles.statusCard}>
             <ActivityIndicator size="small" color="#334155" />
-            <Text style={styles.loadingTitle}>正在生成本期简报</Text>
-            <Text style={styles.loadingDesc}>{briefingState.statusLabel || '把多篇内容收束成一页可回看的判断'}</Text>
+            <View style={styles.statusBody}>
+              <Text style={styles.statusTitle}>正在生成本期简报</Text>
+              <Text style={styles.statusDesc}>{briefingState.statusLabel || '把多篇内容收束成一页可回看的判断。'}</Text>
+            </View>
           </View>
         ) : null}
 
         {!artifact && briefingState.error ? (
           <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>这次生成没有成功</Text>
-            <Text style={styles.errorDesc}>{briefingState.error}</Text>
+            <View style={styles.statusBody}>
+              <Text style={styles.errorTitle}>这次生成没有成功</Text>
+              <Text style={styles.errorDesc}>{briefingState.error}</Text>
+            </View>
             <Pressable style={styles.retryBtn} onPress={() => setReloadTick((value) => value + 1)}>
               <Text style={styles.retryBtnText}>重新生成</Text>
             </Pressable>
@@ -164,44 +171,49 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
               </View>
             ) : null}
 
-            <View style={styles.summaryBlock}>
-              <Text style={styles.sectionEyebrow}>一句话核心摘要</Text>
-              <Text style={styles.summaryText}>{data?.oneLiner || data?.summary || '本期内容已经整理完成。'}</Text>
-              {data?.summary && data.summary !== data.oneLiner ? <Text style={styles.summarySub}>{data.summary}</Text> : null}
+            <View style={styles.introBlock}>
+              <Text style={styles.sectionLabel}>一句话判断</Text>
+              <Text style={styles.introLead}>{data?.oneLiner || data?.summary || '本期内容已经整理完成。'}</Text>
+              {data?.summary && data.summary !== data.oneLiner ? <Text style={styles.introBody}>{data.summary}</Text> : null}
             </View>
 
             {!!data?.bullets?.length && (
-              <View style={styles.analysisBlock}>
-                <Text style={styles.sectionEyebrow}>关键信号</Text>
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionLabel}>关键信号</Text>
                 {data.bullets.map((bullet, index) => (
-                  <View key={`${index}-${bullet.slice(0, 12)}`} style={styles.bulletRow}>
-                    <Text style={styles.bulletIndex}>{`${String(index + 1).padStart(2, '0')}.`}</Text>
-                    <Text style={styles.bulletText}>{bullet}</Text>
+                  <View key={`${index}-${bullet.slice(0, 12)}`} style={[styles.signalRow, index > 0 && styles.rowDivider]}>
+                    <Text style={styles.signalIndex}>{`${String(index + 1).padStart(2, '0')}`}</Text>
+                    <Text style={styles.signalText}>{bullet}</Text>
                   </View>
                 ))}
               </View>
             )}
 
-            <View style={styles.analysisBlock}>
-              <Text style={styles.sectionEyebrow}>要点拆解</Text>
-              {(data?.sections?.length ? data.sections : []).map((section, index) => (
-                <View key={section.id} style={styles.sectionCard}>
-                  <View style={styles.sectionTitleRow}>
-                    <Text style={styles.sectionIndex}>{`${String(index + 1).padStart(2, '0')}.`}</Text>
-                    <View style={styles.sectionTitleWrap}>
-                      <Text style={styles.sectionTitle}>{section.title}</Text>
+            {!!data?.sections?.length && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionLabel}>展开阅读</Text>
+                {(data?.sections?.length ? data.sections : []).map((section, index) => (
+                  <View key={section.id} style={[styles.detailRow, index > 0 && styles.rowDivider]}>
+                    <View style={styles.detailHead}>
+                      <Text style={styles.detailIndex}>{`${String(index + 1).padStart(2, '0')}`}</Text>
+                      <Text style={styles.detailTitle}>{section.title}</Text>
                     </View>
+                    <Text style={styles.detailSummary}>{section.summary}</Text>
+                    <Text style={styles.detailKeyPoint}>{section.keyPoint}</Text>
                   </View>
-                  <Text style={styles.sectionInsight}>{section.summary}</Text>
-                  <Text style={styles.sectionAction}>{section.keyPoint}</Text>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            )}
 
             <Pressable style={styles.sourcesBtn} onPress={() => setSourcesOpen(true)}>
-              <Link2 size={15} color="#0f172a" />
-              <Text style={styles.sourcesBtnText}>{`查看 ${pickedNotes.length} 篇原文链接`}</Text>
-              <ChevronRight size={16} color="#64748b" />
+              <View style={styles.sourcesLeft}>
+                <Link2 size={15} color="#0f172a" />
+                <View>
+                  <Text style={styles.sourcesBtnText}>{`${pickedNotes.length} 篇原文来源`}</Text>
+                  <Text style={styles.sourcesBtnMeta}>打开原文笔记，继续阅读上下文。</Text>
+                </View>
+              </View>
+              <ChevronRight size={16} color="#94a3b8" />
             </Pressable>
           </>
         ) : null}
@@ -229,7 +241,7 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
                 </View>
                 <View style={styles.sourceRowBody}>
                   <Text numberOfLines={2} style={styles.sourceRowTitle}>{note.title}</Text>
-                  <Text style={styles.sourceRowMeta}>{dateLabel}</Text>
+                  <Text style={styles.sourceRowMeta}>{formatDateLabel(note.updatedAt || note.createdAt)}</Text>
                 </View>
                 <ChevronRight size={16} color="#94a3b8" />
               </Pressable>
@@ -243,111 +255,126 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fcfaf5' },
-  content: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 140 },
+  content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 140 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backIconBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backIconText: { fontSize: 15, color: '#0f172a', fontWeight: '700' },
   refreshPill: {
-    minHeight: 34,
-    borderRadius: 17,
-    backgroundColor: '#f5f5f4',
-    paddingHorizontal: 12,
+    minHeight: 32,
+    borderRadius: 16,
+    backgroundColor: '#f7f4ee',
+    paddingHorizontal: 11,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: '#e7e5e4',
+    borderColor: '#ece7dd',
   },
   refreshPillText: { fontSize: 13, color: '#44403c', fontWeight: '700' },
-  title: { marginTop: 18, fontSize: 30, lineHeight: 36, color: '#0f172a', fontWeight: '900' },
-  meta: { marginTop: 8, fontSize: 14, color: '#64748b', fontWeight: '600' },
-  stateRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  eyebrow: {
+    marginTop: 18,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#8b7d6b',
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  title: { ...mobileType.screenTitle, marginTop: 10, fontSize: 32, lineHeight: 38 },
+  meta: { marginTop: 10, fontSize: 13, lineHeight: 18, color: '#7c8798' },
+  stateRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   stateText: { fontSize: 12, lineHeight: 18, color: '#64748b', fontWeight: '600' },
-  loadingCard: {
+  statusCard: {
     marginTop: 24,
-    borderRadius: 24,
+    borderRadius: 22,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#e7e5e4',
+    borderColor: '#ede7da',
     paddingHorizontal: 18,
     paddingVertical: 18,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
-  loadingTitle: { fontSize: 18, color: '#111827', fontWeight: '800' },
-  loadingDesc: { fontSize: 13, lineHeight: 20, color: '#64748b', textAlign: 'center' },
+  statusBody: { flex: 1, gap: 4 },
+  statusTitle: { fontSize: 16, color: '#111827', fontWeight: '800' },
+  statusDesc: { fontSize: 13, lineHeight: 20, color: '#64748b' },
   errorCard: {
     marginTop: 24,
-    borderRadius: 24,
+    borderRadius: 22,
     backgroundColor: '#fff7ed',
     borderWidth: 1,
     borderColor: '#fed7aa',
     paddingHorizontal: 18,
     paddingVertical: 18,
-    gap: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  errorTitle: { fontSize: 18, color: '#9a3412', fontWeight: '800' },
+  errorTitle: { fontSize: 16, color: '#9a3412', fontWeight: '800' },
   errorDesc: { fontSize: 13, lineHeight: 20, color: '#9a3412' },
   retryBtn: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
-    minHeight: 40,
-    borderRadius: 14,
+    minHeight: 36,
+    borderRadius: 18,
     backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
   },
   retryBtnText: { fontSize: 14, color: 'white', fontWeight: '800' },
-  summaryBlock: {
-    marginTop: 22,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e7e5e4',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+  introBlock: {
+    marginTop: 24,
+    paddingTop: 18,
+    paddingBottom: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#ece7dd',
   },
-  analysisBlock: {
-    marginTop: 18,
-    borderRadius: 20,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#e7e5e4',
-    paddingHorizontal: 14,
+  sectionBlock: {
+    marginTop: 24,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: '#ece7dd',
+  },
+  sectionLabel: { fontSize: 12, lineHeight: 16, color: '#8b7d6b', fontWeight: '700', letterSpacing: 0.4 },
+  introLead: { marginTop: 10, fontSize: 22, lineHeight: 33, color: '#171717', fontWeight: '600', letterSpacing: -0.2 },
+  introBody: { marginTop: 12, fontSize: 15, lineHeight: 24, color: '#475569' },
+  signalRow: {
     paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
   },
-  sectionEyebrow: { fontSize: 13, color: '#78716c', fontWeight: '800' },
-  summaryText: { marginTop: 8, fontSize: 17, lineHeight: 28, color: '#292524' },
-  summarySub: { marginTop: 8, fontSize: 14, lineHeight: 22, color: '#57534e' },
-  bulletRow: { marginTop: 12, flexDirection: 'row', alignItems: 'flex-start' },
-  bulletIndex: { fontSize: 16, color: '#a16207', fontWeight: '800', width: 28 },
-  bulletText: { flex: 1, fontSize: 15, lineHeight: 24, color: '#1f2937' },
-  sectionCard: {
-    marginTop: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f4',
+  rowDivider: { borderTopWidth: 1, borderTopColor: '#f1ece3' },
+  signalIndex: {
+    width: 24,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#9a8c78',
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  sectionIndex: { fontSize: 16, color: '#a16207', fontWeight: '800', width: 28 },
-  sectionTitleWrap: { flex: 1 },
-  sectionTitle: { fontSize: 16, lineHeight: 22, color: '#111827', fontWeight: '700' },
-  sectionInsight: { marginTop: 8, fontSize: 14, lineHeight: 22, color: '#1f2937' },
-  sectionAction: { marginTop: 6, fontSize: 13, lineHeight: 20, color: '#78716c' },
+  signalText: { flex: 1, fontSize: 16, lineHeight: 25, color: '#1f2937' },
+  detailRow: { paddingVertical: 16 },
+  detailHead: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  detailIndex: { fontSize: 12, lineHeight: 18, color: '#9a8c78', fontWeight: '800' },
+  detailTitle: { flex: 1, fontSize: 18, lineHeight: 24, color: '#111827', fontWeight: '700' },
+  detailSummary: { marginTop: 8, fontSize: 15, lineHeight: 24, color: '#1f2937' },
+  detailKeyPoint: { marginTop: 8, fontSize: 13, lineHeight: 21, color: '#64748b' },
   sourcesBtn: {
-    marginTop: 18,
-    height: 46,
-    borderRadius: 14,
+    marginTop: 24,
+    minHeight: 58,
+    borderRadius: 18,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#e7e5e4',
+    borderColor: '#ede7da',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    gap: 10,
   },
-  sourcesBtnText: { fontSize: 14, color: '#0f172a', fontWeight: '800' },
+  sourcesLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  sourcesBtnText: { fontSize: 14, lineHeight: 20, color: '#0f172a', fontWeight: '700' },
+  sourcesBtnMeta: { marginTop: 2, fontSize: 12, lineHeight: 17, color: '#94a3b8' },
   sheetMask: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.24)' },
   sheet: {
     backgroundColor: '#fffdf8',

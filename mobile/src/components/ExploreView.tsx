@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowLeft, ChevronRight, Compass, Lightbulb, Plus, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Sparkles } from 'lucide-react-native';
 import { exploreTopic, getCachedTopicExplore, type ExploreQuestionsResult } from '../services/ai-actions';
 import { buildTopicWorkspace, getExploreTopicOptions } from '../services/topic-workspace';
 import { getTemplateContent, recommendTemplates, recordTemplateUsage } from '../services/template-recommender';
 import { useNoteStore } from '../store/noteStore';
+import { mobileType } from '../theme/typography';
 import { AppView } from '../types';
 import StateBlock from './StateBlock';
 import TopicPickerSheet from './TopicPickerSheet';
@@ -120,145 +121,131 @@ export default function ExploreView({
           </Pressable>
         </View>
 
-        <Text style={styles.pageTitle}>深度探索</Text>
-        <Text style={styles.pageSub}>围绕一个 Topic，先看清进展，再决定要不要继续深入。</Text>
+        <Text style={styles.eyebrow}>深度探索</Text>
+        <Text style={styles.topicTitle}>{workspace.topicLabel}</Text>
+        <Text style={styles.topicSummary}>{workspace.summary}</Text>
 
-        <View style={styles.heroCard}>
-          <View style={styles.heroTopicRow}>
-            <View style={styles.heroIconWrap}>
-              <Compass size={16} color="#2563eb" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroLabel}>{workspace.topicSource === 'custom' ? '手动设置的 Topic' : 'AI 识别出的 Topic'}</Text>
-              <Text style={styles.heroTitle}>{workspace.topicLabel}</Text>
-            </View>
-          </View>
-          <Text style={styles.heroSummary}>{workspace.summary}</Text>
-          <View style={styles.heroMetaRow}>
-            <Text style={styles.heroMeta}>
-              {`${workspace.noteCount || 0} 篇材料 · ${Math.max(workspace.freshCount, workspace.noteCount ? 1 : 0)} 条进展`}
-            </Text>
-            <Pressable onPress={() => setTopicPickerOpen(true)}>
-              <Text style={styles.heroMetaLink}>调整 Topic</Text>
-            </Pressable>
-          </View>
+        <View style={styles.topicMetaRow}>
+          <Text style={styles.topicMeta}>
+            {`${workspace.topicSource === 'custom' ? '手动 Topic' : '自动识别 Topic'} · ${workspace.noteCount || 0} 篇材料 · ${Math.max(
+              workspace.freshCount,
+              workspace.noteCount ? 1 : 0
+            )} 条进展`}
+          </Text>
+          <Pressable onPress={() => setTopicPickerOpen(true)}>
+            <Text style={styles.topicMetaLink}>调整</Text>
+          </Pressable>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>今日进展</Text>
-          <View style={styles.sectionCard}>
-            {workspace.progressItems.map((item) => {
-              const interactive = !!item.noteId;
-              return (
-                <Pressable
-                  key={item.id}
-                  style={[styles.progressRow, !interactive && styles.progressRowStatic]}
-                  onPress={interactive ? () => onNavigate('document', item.noteId) : undefined}
-                  disabled={!interactive}
-                >
-                  <View style={styles.progressBullet} />
-                  <View style={styles.progressBody}>
-                    <Text style={styles.progressTitle}>{item.title}</Text>
-                    <Text style={styles.progressDetail}>{item.detail}</Text>
-                  </View>
-                  {interactive ? <ChevronRight size={16} color="#94a3b8" /> : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionLabel}>最新进展</Text>
+          {workspace.progressItems.map((item, index) => {
+            const interactive = !!item.noteId;
+            return (
+              <Pressable
+                key={item.id}
+                style={[styles.progressRow, index > 0 && styles.rowDivider, !interactive && styles.progressRowStatic]}
+                onPress={interactive ? () => onNavigate('document', item.noteId) : undefined}
+                disabled={!interactive}
+              >
+                <Text style={styles.progressIndex}>{`${String(index + 1).padStart(2, '0')}`}</Text>
+                <View style={styles.progressBody}>
+                  <Text style={styles.progressTitle}>{item.title}</Text>
+                  <Text style={styles.progressDetail}>{item.detail}</Text>
+                </View>
+                {interactive ? <ChevronRight size={16} color="#94a3b8" /> : null}
+              </Pressable>
+            );
+          })}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>关联视角</Text>
-          <View style={styles.quietCard}>
-            <View style={styles.inlineLabelRow}>
-              <Lightbulb size={15} color="#ca8a04" />
-              <Text style={styles.inlineLabel}>跨笔记互补线索</Text>
-            </View>
-            <Text style={styles.relationTitle}>{workspace.relationCard.title}</Text>
-            <Text style={styles.relationDetail}>{workspace.relationCard.detail}</Text>
+          <View style={[styles.contextRow, styles.rowDivider]}>
+            <Text style={styles.contextLabel}>关联线索</Text>
             <Pressable
-              style={styles.inlineAction}
+              style={styles.contextLink}
               onPress={() => {
                 if (workspace.relationCard.noteId) onNavigate('document', workspace.relationCard.noteId);
                 else onNavigate('library');
               }}
             >
-              <Text style={styles.inlineActionText}>{workspace.relationCard.actionLabel}</Text>
+              <Text style={styles.contextLinkTitle}>{workspace.relationCard.title}</Text>
+              <Text style={styles.contextLinkDetail}>{workspace.relationCard.detail}</Text>
             </Pressable>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI 追问</Text>
-          <View style={styles.quietCard}>
-            <View style={styles.challengeHead}>
-              <View style={styles.inlineLabelRow}>
-                <Sparkles size={14} color="#b91c1c" />
-                <Text style={styles.inlineLabel}>EchoNote AI</Text>
-              </View>
-              {aiState.loading ? (
-                <View style={styles.challengeStatusWrap}>
-                  <ActivityIndicator size="small" color="#64748b" />
-                  <Text style={styles.challengeStatusText}>{aiState.stale ? '正在刷新' : '正在生成'}</Text>
-                </View>
-              ) : null}
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHead}>
+            <View style={styles.sectionHeadLabel}>
+              <Sparkles size={14} color="#b91c1c" />
+              <Text style={styles.sectionLabel}>AI 追问</Text>
             </View>
-            <Text style={styles.challengeEyebrow}>{aiState.result?.hook || workspace.challengeCard.eyebrow}</Text>
-            {(aiState.result?.questions?.length ? aiState.result.questions : [workspace.challengeCard.prompt]).map((question, index) => (
-              <Pressable key={`${index}-${question.slice(0, 16)}`} style={styles.questionRow} onPress={() => onOpenAIChallenge(question)}>
-                <Text style={styles.questionText}>{question}</Text>
-                <ChevronRight size={16} color="#94a3b8" />
-              </Pressable>
-            ))}
-            <View style={styles.challengeFooter}>
-              <Text style={styles.challengeNextLabel}>建议下一步</Text>
-              <Text style={styles.challengePrompt}>{aiState.result?.nextStep || workspace.challengePrompt}</Text>
-            </View>
-            {aiState.error ? (
-              <View style={styles.challengeErrorRow}>
-                <Text style={styles.challengeErrorText}>{aiState.error}</Text>
-                <Pressable style={styles.challengeRetryBtn} onPress={() => setAiReloadTick((value) => value + 1)}>
-                  <Text style={styles.challengeRetryText}>重试</Text>
-                </Pressable>
+            {aiState.loading ? (
+              <View style={styles.challengeStatusWrap}>
+                <ActivityIndicator size="small" color="#64748b" />
+                <Text style={styles.challengeStatusText}>{aiState.stale ? '正在刷新' : '正在生成'}</Text>
               </View>
             ) : null}
-            <Pressable
-              style={styles.inlineAction}
-              onPress={() => onOpenAIChallenge(aiState.result?.nextStep || workspace.challengePrompt)}
-            >
-              <Text style={styles.inlineActionText}>继续和 AI 讨论</Text>
-            </Pressable>
           </View>
+
+          <Text style={styles.challengeHook}>{aiState.result?.hook || workspace.challengeCard.eyebrow}</Text>
+
+          {(aiState.result?.questions?.length ? aiState.result.questions : [workspace.challengeCard.prompt]).map((question, index) => (
+            <Pressable
+              key={`${index}-${question.slice(0, 16)}`}
+              style={[styles.questionRow, index > 0 && styles.rowDivider]}
+              onPress={() => onOpenAIChallenge(question)}
+            >
+              <Text style={styles.questionText}>{question}</Text>
+              <ChevronRight size={16} color="#94a3b8" />
+            </Pressable>
+          ))}
+
+          <View style={[styles.nextStepRow, styles.rowDivider]}>
+            <Text style={styles.nextStepLabel}>建议下一步</Text>
+            <Text style={styles.nextStepText}>{aiState.result?.nextStep || workspace.challengePrompt}</Text>
+          </View>
+
+          {aiState.error ? (
+            <View style={styles.challengeErrorRow}>
+              <Text style={styles.challengeErrorText}>{aiState.error}</Text>
+              <Pressable style={styles.challengeRetryBtn} onPress={() => setAiReloadTick((value) => value + 1)}>
+                <Text style={styles.challengeRetryText}>重试</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.footerActions}>
-          <Pressable style={styles.footerGhostBtn} onPress={() => onNavigate('search')}>
-            <Text style={styles.footerGhostText}>补充更多资料</Text>
-          </Pressable>
-
           <Pressable
-            style={styles.footerGhostBtn}
-            onPress={async () => {
-              const template = templates[0]?.template;
-              if (!template) return;
-              await recordTemplateUsage(template.id);
-              const noteId = await createNote({
-                title: `${template.name} - ${workspace.topicLabel}`,
-                content: `${getTemplateContent(template)}\n\n## 当前 Topic\n- ${workspace.topicLabel}`,
-                type: 'text',
-                tags: ['模板', workspace.topicLabel],
-              });
-              onNavigate('document', noteId);
-            }}
+            style={styles.primaryAction}
+            onPress={() => onOpenAIChallenge(aiState.result?.nextStep || workspace.challengePrompt)}
           >
-            <Text style={styles.footerGhostText}>沉淀成文稿</Text>
+            <Text style={styles.primaryActionText}>继续和 AI 讨论</Text>
           </Pressable>
 
-          <Pressable style={styles.bottomAddBtn} onPress={() => setTopicPickerOpen(true)}>
-            <Plus size={17} color="#0f172a" />
-            <Text style={styles.bottomAddText}>切换 Topic</Text>
-          </Pressable>
+          <View style={styles.inlineActionsRow}>
+            <Pressable style={styles.inlineAction} onPress={() => onNavigate('search')}>
+              <Text style={styles.inlineActionText}>补充更多资料</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.inlineAction}
+              onPress={async () => {
+                const template = templates[0]?.template;
+                if (!template) return;
+                await recordTemplateUsage(template.id);
+                const noteId = await createNote({
+                  title: `${template.name} - ${workspace.topicLabel}`,
+                  content: `${getTemplateContent(template)}\n\n## 当前 Topic\n- ${workspace.topicLabel}`,
+                  type: 'text',
+                  tags: ['模板', workspace.topicLabel],
+                });
+                onNavigate('document', noteId);
+              }}
+            >
+              <Text style={styles.inlineActionText}>沉淀成文稿</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
 
@@ -278,107 +265,76 @@ export default function ExploreView({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fcfaf5' },
-  content: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 140 },
+  content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 140 },
   emptyScreen: { flex: 1, backgroundColor: '#fcfaf5', paddingHorizontal: 18, justifyContent: 'center' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backText: { fontSize: 15, color: '#0f172a', fontWeight: '700' },
   topicSwitchBtn: {
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
+    minHeight: 32,
+    borderRadius: 16,
+    backgroundColor: '#f7f4ee',
+    paddingHorizontal: 11,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ece7dd',
   },
-  topicSwitchText: { fontSize: 13, color: '#334155', fontWeight: '700' },
-  pageTitle: { marginTop: 18, fontSize: 30, lineHeight: 36, color: '#0f172a', fontWeight: '900' },
-  pageSub: { marginTop: 6, fontSize: 14, lineHeight: 22, color: '#64748b' },
-  heroCard: {
+  topicSwitchText: { fontSize: 13, color: '#44403c', fontWeight: '700' },
+  eyebrow: {
     marginTop: 18,
-    borderRadius: 24,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 16,
-    paddingVertical: 15,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#8b7d6b',
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
-  heroTopicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  heroIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
-  heroLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
-  heroTitle: { marginTop: 2, fontSize: 22, lineHeight: 28, color: '#111827', fontWeight: '800' },
-  heroSummary: { marginTop: 12, fontSize: 15, lineHeight: 23, color: '#334155' },
-  heroMetaRow: { marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  heroMeta: { fontSize: 12, color: '#94a3b8' },
-  heroMetaLink: { fontSize: 12, color: '#475569', fontWeight: '700' },
-  section: { marginTop: 20 },
-  sectionTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
-  sectionCard: {
-    marginTop: 10,
-    borderRadius: 20,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 2,
+  topicTitle: { ...mobileType.screenTitle, marginTop: 10, fontSize: 32, lineHeight: 38 },
+  topicSummary: { marginTop: 12, fontSize: 16, lineHeight: 26, color: '#475569' },
+  topicMetaRow: { marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  topicMeta: { flex: 1, fontSize: 13, lineHeight: 18, color: '#94a3b8' },
+  topicMetaLink: { fontSize: 12, lineHeight: 18, color: '#334155', fontWeight: '700' },
+  sectionBlock: {
+    marginTop: 24,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: '#ece7dd',
   },
+  sectionLabel: { fontSize: 12, lineHeight: 16, color: '#8b7d6b', fontWeight: '700', letterSpacing: 0.4 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  sectionHeadLabel: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   progressRow: {
-    minHeight: 58,
-    borderRadius: 14,
-    paddingHorizontal: 6,
-    paddingVertical: 8,
+    minHeight: 66,
+    paddingVertical: 14,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    alignItems: 'flex-start',
+    gap: 12,
   },
   progressRowStatic: { opacity: 0.92 },
-  progressBullet: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#60a5fa' },
+  rowDivider: { borderTopWidth: 1, borderTopColor: '#f1ece3' },
+  progressIndex: { width: 24, fontSize: 12, lineHeight: 18, color: '#9a8c78', fontWeight: '800' },
   progressBody: { flex: 1 },
-  progressTitle: { fontSize: 14, lineHeight: 20, color: '#111827', fontWeight: '700' },
-  progressDetail: { marginTop: 4, fontSize: 12, lineHeight: 18, color: '#64748b' },
-  quietCard: {
-    marginTop: 10,
-    borderRadius: 20,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  inlineLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  inlineLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
-  relationTitle: { marginTop: 10, fontSize: 16, lineHeight: 22, color: '#111827', fontWeight: '700' },
-  relationDetail: { marginTop: 8, fontSize: 14, lineHeight: 21, color: '#4b5563' },
-  inlineAction: { marginTop: 12, alignSelf: 'flex-start', paddingVertical: 4 },
-  inlineActionText: { fontSize: 13, color: '#334155', fontWeight: '700' },
-  challengeHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressTitle: { fontSize: 16, lineHeight: 23, color: '#111827', fontWeight: '700' },
+  progressDetail: { marginTop: 4, fontSize: 14, lineHeight: 21, color: '#64748b' },
+  contextRow: { paddingTop: 16 },
+  contextLabel: { fontSize: 12, lineHeight: 16, color: '#8b7d6b', fontWeight: '700', letterSpacing: 0.3 },
+  contextLink: { marginTop: 10 },
+  contextLinkTitle: { fontSize: 15, lineHeight: 22, color: '#111827', fontWeight: '700' },
+  contextLinkDetail: { marginTop: 6, fontSize: 14, lineHeight: 21, color: '#64748b' },
   challengeStatusWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   challengeStatusText: { fontSize: 12, lineHeight: 16, color: '#64748b', fontWeight: '600' },
-  challengeEyebrow: { marginTop: 10, fontSize: 12, color: '#64748b', fontWeight: '700' },
-  challengePrompt: { marginTop: 8, fontSize: 15, lineHeight: 23, color: '#1f2937' },
+  challengeHook: { marginTop: 12, fontSize: 15, lineHeight: 24, color: '#475569' },
   questionRow: {
-    marginTop: 10,
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#edf2f7',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    minHeight: 54,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  questionText: { flex: 1, fontSize: 14, lineHeight: 21, color: '#111827', fontWeight: '600' },
-  challengeFooter: {
-    marginTop: 12,
-    borderRadius: 14,
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  challengeNextLabel: { fontSize: 12, lineHeight: 16, color: '#64748b', fontWeight: '700' },
+  questionText: { flex: 1, fontSize: 16, lineHeight: 24, color: '#111827', fontWeight: '600' },
+  nextStepRow: { paddingTop: 16 },
+  nextStepLabel: { fontSize: 12, lineHeight: 16, color: '#8b7d6b', fontWeight: '700', letterSpacing: 0.3 },
+  nextStepText: { marginTop: 8, fontSize: 15, lineHeight: 24, color: '#1f2937' },
   challengeErrorRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   challengeErrorText: { flex: 1, fontSize: 12, lineHeight: 18, color: '#b45309' },
   challengeRetryBtn: {
@@ -391,27 +347,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   challengeRetryText: { fontSize: 12, color: '#334155', fontWeight: '700' },
-  footerActions: { marginTop: 22, gap: 10 },
-  footerGhostBtn: {
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+  footerActions: { marginTop: 28, gap: 12 },
+  primaryAction: {
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  footerGhostText: { fontSize: 14, color: '#334155', fontWeight: '700' },
-  bottomAddBtn: {
-    height: 46,
+  primaryActionText: { fontSize: 15, color: '#ffffff', fontWeight: '700' },
+  inlineActionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  inlineAction: {
+    minHeight: 40,
     borderRadius: 14,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f7f4ee',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#ece7dd',
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
   },
-  bottomAddText: { fontSize: 14, color: '#0f172a', fontWeight: '800' },
+  inlineActionText: { fontSize: 13, color: '#44403c', fontWeight: '700' },
 });
