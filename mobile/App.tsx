@@ -38,6 +38,9 @@ export default function App() {
   const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND);
   const [aiDraftInput, setAiDraftInput] = useState('');
   const [aiDraftVersion, setAiDraftVersion] = useState(0);
+  const [aiContextTitle, setAiContextTitle] = useState('');
+  const [aiContextBody, setAiContextBody] = useState('');
+  const [aiContextVersion, setAiContextVersion] = useState(0);
   const [briefingNoteIds, setBriefingNoteIds] = useState<string[]>([]);
   const [exploreTopic, setExploreTopic] = useState('');
   const [customExploreTopics, setCustomExploreTopics] = useState<string[]>([]);
@@ -181,13 +184,26 @@ export default function App() {
     handleNavigate('document', id);
   };
 
+  const openAIAssistant = (
+    input = '',
+    context?: {
+      title?: string;
+      content?: string;
+    }
+  ) => {
+    setAiDraftInput(input.trim());
+    setAiDraftVersion((v) => v + 1);
+    setAiContextTitle(context?.title?.trim() || '');
+    setAiContextBody(context?.content?.trim() || '');
+    setAiContextVersion((v) => v + 1);
+    setCurrentView('aiChat');
+  };
+
   const handleVoiceAskAI = (text: string) => {
     const finalText = text.trim();
     if (!finalText) return;
-    setAiDraftInput(finalText);
-    setAiDraftVersion((v) => v + 1);
     setIsVoiceCaptureOpen(false);
-    setCurrentView('aiChat');
+    openAIAssistant(finalText);
   };
 
   const handleFileCapture = async (type?: 'pdf' | 'audio') => {
@@ -296,13 +312,6 @@ export default function App() {
     handleNavigate('document', id);
   };
 
-  const handleSelectSkill = async (skillId: string) => {
-    if (skillId === 'search') setCurrentView('search');
-    else if (skillId === 'chat' || skillId === 'brainstorm' || skillId === 'draft') setCurrentView('aiChat');
-    else if (skillId === 'explore') setCurrentView('explore');
-    else if (skillId === 'tasks') setCurrentView('tasks');
-  };
-
   const handleSelectExploreTopic = (topic: string) => {
     const next = topic.trim();
     if (!next) return;
@@ -319,9 +328,7 @@ export default function App() {
   const handleOpenAIChallenge = (prompt: string) => {
     const next = prompt.trim();
     if (!next) return;
-    setAiDraftInput(next);
-    setAiDraftVersion((v) => v + 1);
-    setCurrentView('aiChat');
+    openAIAssistant(next);
   };
 
   return (
@@ -343,7 +350,13 @@ export default function App() {
           )}
           {currentView === 'library' && <LibraryView onNavigate={handleNavigate} />}
           {currentView === 'document' && (
-            <DocumentView onNavigate={handleNavigate} noteId={selectedNoteId} draftNote={draftNote} onPersistDraft={handlePersistDraft} />
+            <DocumentView
+              onNavigate={handleNavigate}
+              noteId={selectedNoteId}
+              draftNote={draftNote}
+              onPersistDraft={handlePersistDraft}
+              onOpenAIAssistant={openAIAssistant}
+            />
           )}
           {currentView === 'search' && <SearchView onNavigate={handleNavigate} onClose={() => setCurrentView('home')} />}
           {currentView === 'tasks' && <TasksView onNavigate={handleNavigate} />}
@@ -357,7 +370,16 @@ export default function App() {
               onOpenAIChallenge={handleOpenAIChallenge}
             />
           )}
-          {currentView === 'aiChat' && <AIChatView onNavigate={handleNavigate} initialInput={aiDraftInput} initialInputVersion={aiDraftVersion} />}
+          {currentView === 'aiChat' && (
+            <AIChatView
+              onNavigate={handleNavigate}
+              initialInput={aiDraftInput}
+              initialInputVersion={aiDraftVersion}
+              contextTitle={aiContextTitle}
+              contextBody={aiContextBody}
+              contextVersion={aiContextVersion}
+            />
+          )}
           {currentView === 'briefing' && <BriefingView onNavigate={handleNavigate} selectedNoteIds={briefingNoteIds} />}
 
           {currentView !== 'document' && (
@@ -366,7 +388,7 @@ export default function App() {
               onNavigate={setCurrentView}
               onCaptureMenu={() => setIsCaptureMenuOpen(true)}
               onSearch={() => setCurrentView('search')}
-              onSelectSkill={handleSelectSkill}
+              onOpenAIAssistant={() => openAIAssistant()}
               onAIVoiceCapture={() => setIsVoiceCaptureOpen(true)}
             />
           )}

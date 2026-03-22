@@ -1,8 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookOpen, Home, Infinity, Lightbulb, Plus, Search } from 'lucide-react-native';
-import SkillsDial from './SkillsDial';
 import { mobileType } from '../theme/typography';
 import { AppView } from '../types';
 
@@ -10,9 +9,9 @@ interface BottomNavProps {
   currentView: AppView;
   onNavigate: (view: AppView) => void;
   onCaptureMenu?: () => void;
-  onSelectSkill?: (skillId: string) => void;
   onSearch?: () => void;
   onAIVoiceCapture?: () => void;
+  onOpenAIAssistant?: () => void;
 }
 
 interface NavItemProps {
@@ -22,8 +21,7 @@ interface NavItemProps {
   onPress?: () => void;
 }
 
-export default function BottomNav({ currentView, onNavigate, onCaptureMenu, onSelectSkill, onSearch, onAIVoiceCapture }: BottomNavProps) {
-  const [showSkillsDial, setShowSkillsDial] = useState(false);
+export default function BottomNav({ currentView, onNavigate, onCaptureMenu, onSearch, onAIVoiceCapture, onOpenAIAssistant }: BottomNavProps) {
   const longPressTriggeredRef = useRef(false);
   const insets = useSafeAreaInsets();
 
@@ -77,7 +75,7 @@ export default function BottomNav({ currentView, onNavigate, onCaptureMenu, onSe
                 longPressTriggeredRef.current = false;
                 return;
               }
-              setShowSkillsDial(true);
+              onOpenAIAssistant?.();
             }}
             style={styles.aiBtn}
           >
@@ -86,15 +84,6 @@ export default function BottomNav({ currentView, onNavigate, onCaptureMenu, onSe
           <Pressable onPress={onCaptureMenu} style={styles.addBtn}><Plus size={18} color="#374151" /></Pressable>
         </View>
       </View>
-
-      <SkillsDial
-        isOpen={showSkillsDial}
-        onClose={() => setShowSkillsDial(false)}
-        onSelectSkill={(id) => {
-          setShowSkillsDial(false);
-          onSelectSkill?.(id);
-        }}
-      />
     </>
   );
 }

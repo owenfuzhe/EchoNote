@@ -11,15 +11,31 @@ interface Props {
   onNavigate: (view: AppView, noteId?: string) => void;
   initialInput?: string;
   initialInputVersion?: number;
+  contextTitle?: string;
+  contextBody?: string;
+  contextVersion?: number;
 }
 
-const QUICK_ACTIONS = [
+const GENERAL_ACTIONS = [
   { id: 'summarize', label: '总结最近笔记', prompt: '请总结我最近几条笔记的核心要点，并给出 3 条行动建议。' },
   { id: 'todo', label: '提取待办', prompt: '请从我最近笔记中提取待办事项，按高/中/低优先级分组。' },
   { id: 'outline', label: '生成大纲', prompt: '基于我最近笔记内容，生成一个可执行的项目大纲。' },
 ];
 
-export default function AIChatView({ onNavigate, initialInput, initialInputVersion }: Props) {
+const FOCUSED_ACTIONS = [
+  { id: 'focus-summary', label: '总结这篇', prompt: '请总结这篇内容的核心观点，并给出 3 条关键要点。' },
+  { id: 'focus-todo', label: '提取待办', prompt: '请从这篇内容里提取待办事项，如果没有明确待办就给出 3 条可执行下一步。' },
+  { id: 'focus-question', label: '继续追问', prompt: '请基于这篇内容，给我 3 个最值得继续追问的问题。' },
+];
+
+export default function AIChatView({
+  onNavigate,
+  initialInput,
+  initialInputVersion,
+  contextTitle,
+  contextBody,
+  contextVersion,
+}: Props) {
   const { notes } = useNoteStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -29,13 +45,34 @@ export default function AIChatView({ onNavigate, initialInput, initialInputVersi
     if (initialInput?.trim()) setInput(initialInput.trim());
   }, [initialInput, initialInputVersion]);
 
+  useEffect(() => {
+    if (contextVersion) {
+      setMessages([]);
+    }
+  }, [contextVersion]);
+
+  const focusedContext = useMemo(() => {
+    const title = contextTitle?.trim() || '';
+    const body = contextBody?.trim() || '';
+    return body ? { title: title || '当前内容', body } : null;
+  }, [contextBody, contextTitle]);
+
   const context = useMemo(() => {
+    if (focusedContext) {
+      return `当前聚焦内容：\n标题：${focusedContext.title}\n内容：${focusedContext.body}`;
+    }
     const recent = notes.slice(0, 5);
     if (!recent.length) return '暂无笔记内容，请先创建笔记。';
     return recent
       .map((n, idx) => `${idx + 1}. ${n.title}\n${richTextToPreview(n.content, 280)}`)
       .join('\n\n');
-  }, [notes]);
+  }, [focusedContext, notes]);
+
+  const quickActions = focusedContext ? FOCUSED_ACTIONS : GENERAL_ACTIONS;
+  const headerTitle = focusedContext ? '当前内容助手' : 'AI 助手';
+  const headerSub = focusedContext ? `基于《${focusedContext.title}》的上下文` : '基于最近笔记上下文';
+  const welcomeTitle = focusedContext ? '围绕当前内容继续推进' : '开始一段对话';
+  const welcomeSub = focusedContext ? '先收束这篇内容，再决定下一步动作' : '你可以直接提问，或使用快捷指令';
 
   const send = async (preset?: string) => {
     const text = (preset || input).trim();
@@ -50,7 +87,9 @@ export default function AIChatView({ onNavigate, initialInput, initialInputVersi
     try {
       const resp = await chat(next, {
         temperature: 0.7,
-        systemPrompt: `你是 EchoNote 移动端 AI 助手。基于用户最近笔记回答问题。\n\n最近笔记：\n${context}`,
+        systemPrompt: focusedContext
+          ? `你是 EchoNote 移动端 AI 助手。请严格围绕当前这篇内容回答、总结或追问。\n\n当前内容：\n${context}`
+          : `你是 EchoNote 移动端 AI 助手。基于用户最近笔记回答问题。\n\n最近笔记：\n${context}`,
       });
       setMessages([...next, { role: 'assistant', content: resp.content || '我整理好了，但当前没有可展示内容。' }]);
     } catch (e: any) {
@@ -65,18 +104,18 @@ export default function AIChatView({ onNavigate, initialInput, initialInputVersi
       <View style={styles.header}>
         <Pressable onPress={() => onNavigate('home')} style={styles.backBtn}><ChevronLeft size={24} color="#111827" /></Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>AI 对话</Text>
-          <Text style={styles.sub}>基于最近笔记上下文</Text>
+          <Text style={styles.title}>{headerTitle}</Text>
+          <Text style={styles.sub}>{headerSub}</Text>
         </View>
       </View>
 
       {!messages.length ? (
         <View style={styles.welcome}>
           <View style={styles.logo}><Sparkles size={20} color="#7c3aed" /></View>
-          <Text style={styles.welcomeTitle}>开始一段对话</Text>
-          <Text style={styles.welcomeSub}>你可以直接提问，或使用快捷指令</Text>
+          <Text style={styles.welcomeTitle}>{welcomeTitle}</Text>
+          <Text style={styles.welcomeSub}>{welcomeSub}</Text>
           <View style={styles.quickWrap}>
-            {QUICK_ACTIONS.map((item) => (
+            {quickActions.map((item) => (
               <Pressable key={item.id} style={styles.quickBtn} onPress={() => send(item.prompt)}>
                 <Text style={styles.quickText}>{item.label}</Text>
               </Pressable>

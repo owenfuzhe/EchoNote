@@ -22,12 +22,11 @@ import {
   Type,
   Undo2,
 } from 'lucide-react-native';
-import { chat } from '../services/bailian-chat';
 import { DEFAULT_BACKEND } from '../services/backend-config';
 import { saveContextTrace } from '../services/context-graph';
 import { createTodoItem, extractTodos } from '../services/todo-extractor';
 import { useNoteStore } from '../store/noteStore';
-import { AppView, ChatMessage, DocumentTab } from '../types';
+import { AppView, DocumentTab } from '../types';
 import { normalizeContentForEditor, richTextToPlainText } from '../utils/richText';
 import ContextPanel from './ContextPanel';
 import ExportContext from './ExportContext';
@@ -37,6 +36,7 @@ interface Props {
   noteId: string | null;
   draftNote?: { title?: string; content?: string; type?: string; tags?: string[] } | null;
   onPersistDraft?: (noteId: string) => void;
+  onOpenAIAssistant?: (input?: string, context?: { title?: string; content?: string }) => void;
 }
 
 type DocumentKind = 'article' | 'note';
@@ -315,7 +315,7 @@ const EDITOR_CSS = `
   }
 `;
 
-export default function DocumentView({ onNavigate, noteId, draftNote, onPersistDraft }: Props) {
+export default function DocumentView({ onNavigate, noteId, draftNote, onPersistDraft, onOpenAIAssistant }: Props) {
   const { updateNote, getNoteById, notes, createNote, error } = useNoteStore();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('<p></p>');
@@ -324,10 +324,6 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [showAIChat, setShowAIChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
   const [isExtractingTodos, setIsExtractingTodos] = useState(false);
   const [showContextPanel, setShowContextPanel] = useState(false);
   const [showExportContext, setShowExportContext] = useState(false);
@@ -460,38 +456,9 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
       Alert.alert('内容太少', '先写一点内容，再让 AI 帮你整理。');
       return;
     }
-
-    const userMessage: ChatMessage = { role: 'user', content: prompt };
-    const nextMessages = [...chatMessages, userMessage];
-    setShowAIChat(true);
-    setChatMessages(nextMessages);
-    setChatInput('');
-    setIsChatLoading(true);
-
-    try {
-      const systemPrompt = `你是 EchoNote 助手。请基于当前笔记帮助用户整理内容。\n标题：${contextTitle}\n内容：${contextBody}`;
-      const resp = await chat(nextMessages, { systemPrompt, temperature: 0.7 });
-      setChatMessages([...nextMessages, { role: 'assistant', content: resp.content }]);
-      if (note?.id) {
-        await saveContextTrace({
-          noteId: note.id,
-          trigger: 'manual',
-          inputs: [prompt],
-          generatedAt: new Date().toISOString(),
-          model: resp.model,
-          type: 'ai_chat',
-        });
-      }
-    } catch (e: any) {
-      setChatMessages([...nextMessages, { role: 'assistant', content: `抱歉，发生错误：${e?.message || 'unknown'}` }]);
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!chatInput.trim()) return;
-    await runAIConversation(chatInput.trim());
+    setShowMoreMenu(false);
+    setShowArticleTabPicker(false);
+    onOpenAIAssistant?.(prompt, { title: contextTitle, content: contextBody });
   };
 
   const extract = async () => {
@@ -545,7 +512,11 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
   const openAIChat = () => {
     setShowMoreMenu(false);
     setShowArticleTabPicker(false);
-    setShowAIChat(true);
+    if (!contextBody) {
+      Alert.alert('内容太少', '先写一点内容，再让 AI 帮你整理。');
+      return;
+    }
+    onOpenAIAssistant?.('', { title: contextTitle, content: contextBody });
   };
 
   const openContextPanel = () => {
@@ -608,7 +579,7 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
     <View style={[styles.root, isArticle && styles.articleRoot]}>
       <KeyboardAvoidingView
         style={[styles.root, isArticle && styles.articleRoot]}
-        behavior={Platform.OS === 'ios' && (isArticle || showAIChat) ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' && isArticle ? 'padding' : undefined}
       >
         <View style={[styles.header, isArticle && styles.articleHeader]}>
           <View style={styles.headerSide}>
@@ -736,7 +707,6 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
                 onChange={setContent}
                 isKeyboardVisible={isKeyboardVisible}
                 keyboardHeight={keyboardHeight}
-                showAIChat={showAIChat}
                 onRunAIConversation={runAIConversation}
                 onOpenAIChat={openAIChat}
                 onExtractTodos={extract}
@@ -771,47 +741,6 @@ export default function DocumentView({ onNavigate, noteId, draftNote, onPersistD
             </View>
           )}
         </View>
-
-        {showAIChat && (
-          <View style={styles.chatPanel}>
-            <View style={styles.chatHead}>
-              <Text style={styles.chatTitle}>AI 助手</Text>
-              <Pressable onPress={() => setShowAIChat(false)}>
-                <Text style={{ color: '#9ca3af' }}>✕</Text>
-              </Pressable>
-            </View>
-            <ScrollView style={{ maxHeight: 220, padding: 12 }} contentContainerStyle={{ gap: 8 }}>
-              {chatMessages.length === 0 ? (
-                <Text style={{ color: '#9ca3af', textAlign: 'center' }}>问我关于这篇笔记的任何问题...</Text>
-              ) : null}
-              {chatMessages.map((message, index) => (
-                <View
-                  key={index}
-                  style={[styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble]}
-                >
-                  <Text style={{ color: message.role === 'user' ? 'white' : '#1f2937' }}>{message.content}</Text>
-                </View>
-              ))}
-              {isChatLoading && (
-                <View style={[styles.bubble, styles.assistantBubble]}>
-                  <Text>思考中...</Text>
-                </View>
-              )}
-            </ScrollView>
-            <View style={styles.chatInputRow}>
-              <TextInput
-                value={chatInput}
-                onChangeText={setChatInput}
-                placeholder="输入消息..."
-                style={styles.chatInput}
-                onSubmitEditing={sendMessage}
-              />
-              <Pressable onPress={sendMessage} style={styles.sendBtn}>
-                <Text style={{ color: 'white', fontWeight: '600' }}>发送</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
 
         {showMoreMenu && (
           <Pressable style={styles.menuMask} onPress={() => setShowMoreMenu(false)}>
@@ -850,7 +779,6 @@ const NoteBodyEditor = memo(function NoteBodyEditor({
   onChange,
   isKeyboardVisible,
   keyboardHeight,
-  showAIChat,
   onRunAIConversation,
   onOpenAIChat,
   onExtractTodos,
@@ -860,7 +788,6 @@ const NoteBodyEditor = memo(function NoteBodyEditor({
   onChange: (content: string) => void;
   isKeyboardVisible: boolean;
   keyboardHeight: number;
-  showAIChat: boolean;
   onRunAIConversation: (prompt: string) => Promise<void>;
   onOpenAIChat: () => void;
   onExtractTodos: () => Promise<void>;
@@ -886,7 +813,7 @@ const NoteBodyEditor = memo(function NoteBodyEditor({
   const onExtractTodosRef = useRef(onExtractTodos);
   const editorState = useBridgeState(editor);
   const observedEditorHtml = useEditorContent(editor, { type: 'html', debounceInterval: 160 });
-  const shouldShowKeyboardToolbar = Platform.OS === 'ios' && !showAIChat && (isKeyboardVisible || toolbarPanel !== null);
+  const shouldShowKeyboardToolbar = Platform.OS === 'ios' && (isKeyboardVisible || toolbarPanel !== null);
   const toolbarBottomOffset = toolbarPanel ? replacementPanelHeight : keyboardHeight;
 
   useEffect(() => {
@@ -938,12 +865,6 @@ const NoteBodyEditor = memo(function NoteBodyEditor({
       setToolbarPanel(null);
     }
   }, [shouldShowKeyboardToolbar]);
-
-  useEffect(() => {
-    if (showAIChat) {
-      setToolbarPanel(null);
-    }
-  }, [showAIChat]);
 
   useEffect(() => {
     if (!shouldShowKeyboardToolbar) {
@@ -1118,7 +1039,7 @@ const NoteBodyEditor = memo(function NoteBodyEditor({
             }}
             style={styles.toolbarPanelFooter}
           >
-            <Text style={styles.toolbarPanelFooterText}>进入 AI 对话</Text>
+            <Text style={styles.toolbarPanelFooterText}>打开 AI 助手</Text>
           </Pressable>
         </View>
       )}
@@ -1195,7 +1116,7 @@ const NoteBodyEditor = memo(function NoteBodyEditor({
                       }}
                       style={styles.toolbarPanelFooter}
                     >
-                      <Text style={styles.toolbarPanelFooterText}>进入 AI 对话</Text>
+                      <Text style={styles.toolbarPanelFooterText}>打开 AI 助手</Text>
                     </Pressable>
                   </>
                 )}
@@ -1236,7 +1157,6 @@ const NoteBodyEditor = memo(function NoteBodyEditor({
     prev.initialContent === next.initialContent &&
     prev.isKeyboardVisible === next.isKeyboardVisible &&
     prev.keyboardHeight === next.keyboardHeight &&
-    prev.showAIChat === next.showAIChat &&
     prev.isExtractingTodos === next.isExtractingTodos
   );
 });
@@ -1487,15 +1407,6 @@ const styles = StyleSheet.create({
   articleBody: { fontSize: 18, lineHeight: 32, color: '#1f2937', paddingBottom: 4, letterSpacing: -0.12 },
   webviewWrap: { flex: 1, minHeight: 0 },
   webview: { flex: 1, backgroundColor: '#ffffff' },
-  chatPanel: { position: 'absolute', left: 14, right: 14, bottom: 96, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb' },
-  chatHead: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-  chatTitle: { fontWeight: '700', color: '#111827' },
-  bubble: { maxWidth: '82%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 },
-  userBubble: { backgroundColor: '#3b82f6', alignSelf: 'flex-end' },
-  assistantBubble: { backgroundColor: '#f3f4f6', alignSelf: 'flex-start' },
-  chatInputRow: { flexDirection: 'row', gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
-  chatInput: { flex: 1, backgroundColor: '#f3f4f6', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  sendBtn: { backgroundColor: '#3b82f6', borderRadius: 999, paddingHorizontal: 14, justifyContent: 'center' },
   menuMask: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   menuCard: {
     position: 'absolute',
