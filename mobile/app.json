@@ -9,7 +9,7 @@
     "scheme": "echonote",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.echonote.mobile",
+      "bundleIdentifier": "com.crispyideas.echonote",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSSpeechRecognitionUsageDescription": "EchoNote 需要语音识别权限来把你的语音转换成可编辑文本。",
@@ -17,7 +17,7 @@
       }
     },
     "android": {
-      "package": "com.echonote.mobile",
+      "package": "com.crispyideas.echonote",
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]
