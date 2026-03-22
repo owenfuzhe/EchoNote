@@ -4,6 +4,10 @@
 
 - Expo / EAS release scaffolding is present in [mobile/app.json](/Users/bytedance/Echonote/mobile/app.json) and [mobile/eas.json](/Users/bytedance/Echonote/mobile/eas.json).
 - `eas-cli` is installed locally in [mobile/package.json](/Users/bytedance/Echonote/mobile/package.json).
+- Release assets are now wired in:
+  - [icon.png](/Users/bytedance/Echonote/mobile/assets/icon.png)
+  - [splash.png](/Users/bytedance/Echonote/mobile/assets/splash.png)
+- Bundle ID is confirmed as `com.crispyideas.echonote`.
 - The core MVP path is already testable:
   - link import
   - article reading
@@ -13,26 +17,24 @@
 
 ## Blockers Before TestFlight
 
-1. Add release assets.
-   - App icon
-   - Splash / launch image
-   - Optional App Store marketing icon
-
-2. Prepare Apple credentials.
-   - Apple Developer account access
+1. Prepare App Store Connect metadata.
    - App Store Connect app record
-   - Bundle ID confirmation: `com.echonote.mobile`
+   - screenshots
+   - app description / subtitle / keywords
+   - privacy policy URL
 
-3. Verify production env values for the app build.
+2. Verify production env values for the app build.
    - `EXPO_PUBLIC_SUPABASE_URL`
    - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
    - optional fallback values only if truly needed for release
+   - Render `DATABASE_URL` if you want durable AI jobs/artifacts in production
 
-4. Run one real device regression round.
+3. Run one real device regression round.
    - import WeChat article
    - open source page / snapshot / plain text
    - AI chat
    - voice capture -> refine -> save note
+   - AI assistant -> mic -> record -> send to AI
 
 ## Commands
 
@@ -53,16 +55,15 @@ PATH="/opt/homebrew/opt/node@22/bin:$PATH" npm run eas:submit:ios
 
 ## Release Risks Still Open
 
-- AI jobs/artifacts are not yet durable enough for store-grade reliability; current backend storage still needs persistence work.
-- Voice capture is MVP-grade and should get one more round of permission/error polish before public release.
-- AI assistant is already usable, but still needs clearer high-frequency actions instead of only generic chat.
+- AI jobs/artifacts support durable storage in code, but the live Render service still needs `DATABASE_URL` to avoid memory-only fallback.
+- Voice capture has been simplified to an explicit start/stop flow, but still needs one full real-device regression round before public release.
+- The AI assistant is now on a clearer single-screen path, but still needs product wording and empty/error-state polish after real usage.
 
 ## Recommended Next Order
 
-1. Add icon and splash assets
-2. Log in to EAS
-3. Produce one `preview` iOS build
-4. Test on one or two real devices
-5. Persist AI jobs/artifacts
-6. Polish voice capture and AI assistant
-7. Ship TestFlight
+1. Produce one fresh `preview` iOS build
+2. Run real-device regression on one or two iPhones
+3. Configure Render `DATABASE_URL`
+4. Create App Store Connect metadata and screenshots
+5. Produce `production` build
+6. Submit to TestFlight / App Store

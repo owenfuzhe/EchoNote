@@ -70,6 +70,21 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
   const transcriptRef = useRef('');
   const refiningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const stopNativeRecognition = () => {
+    const mod = speechModuleRef.current;
+    if (!mod) return;
+    try {
+      mod.stop();
+    } catch {
+      // ignore
+    }
+    try {
+      mod.abort?.();
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     const mod = getNativeSpeechModule();
     speechModuleRef.current = mod;
@@ -80,6 +95,7 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
 
   useEffect(() => {
     if (!isOpen) {
+      stopNativeRecognition();
       setIsRecording(false);
       setIsRefining(false);
       setDraftText('');
@@ -94,6 +110,16 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
       }
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      stopNativeRecognition();
+      if (refiningTimerRef.current) {
+        clearTimeout(refiningTimerRef.current);
+        refiningTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const mod = speechModuleRef.current;
@@ -112,11 +138,13 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
 
     const errorSub = mod.addListener('error', (event: SpeechErrorEvent) => {
       setIsRecording(false);
+      setVolume(0);
       setErrorText(event.message || '语音识别失败，请重试');
     });
 
     const endSub = mod.addListener('end', () => {
       setIsRecording(false);
+      setVolume(0);
     });
 
     return () => {
@@ -247,7 +275,7 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
     setIsRecording(false);
 
     try {
-      speechModuleRef.current?.stop();
+      stopNativeRecognition();
     } catch {
       // ignore
     }

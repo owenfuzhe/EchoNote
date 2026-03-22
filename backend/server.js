@@ -282,6 +282,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     database: isDbConfigured() ? 'configured' : 'unconfigured',
+    aiStore: isDbConfigured() ? 'durable' : 'memory',
     ai: aiHealth.configured ? 'configured' : 'demo',
     aiProvider: aiHealth.provider,
     availableAiProviders: aiHealth.availableProviders,
