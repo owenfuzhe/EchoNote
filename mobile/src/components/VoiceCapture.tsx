@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NativeModulesProxy } from 'expo-modules-core';
 import { Infinity, Mic, Sparkles, X } from 'lucide-react-native';
 import { chat } from '../services/bailian-chat';
@@ -14,9 +14,12 @@ interface VoiceCaptureProps {
 type SpeechResultEvent = { results?: Array<{ transcript?: string }> };
 type SpeechVolumeEvent = { value: number };
 type SpeechErrorEvent = { message?: string };
+type PermissionResponseLike = { granted: boolean };
 
 type SpeechModuleLike = {
-  requestPermissionsAsync: () => Promise<{ granted: boolean }>;
+  requestPermissionsAsync?: () => Promise<PermissionResponseLike>;
+  requestMicrophonePermissionsAsync?: () => Promise<PermissionResponseLike>;
+  isRecognitionAvailable?: () => boolean | Promise<boolean>;
   start: (options: Record<string, unknown>) => void;
   stop: () => void;
   addListener?: (eventName: string, listener: (event: any) => void) => { remove?: () => void };
@@ -31,6 +34,16 @@ function fallbackRefine(text: string): string {
 }
 
 function getNativeSpeechModule(): SpeechModuleLike | null {
+  try {
+    const pkg = require('expo-speech-recognition') as { ExpoSpeechRecognitionModule?: SpeechModuleLike };
+    const mod = pkg?.ExpoSpeechRecognitionModule;
+    if (mod && typeof mod.start === 'function' && typeof mod.stop === 'function') {
+      return mod;
+    }
+  } catch {
+    // Fall back to legacy proxy lookup below.
+  }
+
   const mod = (NativeModulesProxy as Record<string, any>)?.ExpoSpeechRecognition;
   if (!mod) return null;
   if (typeof mod.start !== 'function' || typeof mod.stop !== 'function') return null;
@@ -46,15 +59,18 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
   const [volume, setVolume] = useState(0);
   const [errorText, setErrorText] = useState('');
 
+  const [speechModule, setSpeechModule] = useState<SpeechModuleLike | null>(null);
   const speechModuleRef = useRef<SpeechModuleLike | null>(null);
   const transcriptRef = useRef('');
   const refiningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    speechModuleRef.current = getNativeSpeechModule();
+    const mod = getNativeSpeechModule();
+    speechModuleRef.current = mod;
+    setSpeechModule(mod);
   }, []);
 
-  const nativeMode = !!speechModuleRef.current;
+  const nativeMode = !!speechModule;
 
   useEffect(() => {
     if (!isOpen) {
@@ -140,9 +156,27 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
     if (!mod || isRecording || isRefining) return;
 
     try {
-      const permission = await mod.requestPermissionsAsync();
+      const permission =
+        Platform.OS === 'ios' && typeof mod.requestMicrophonePermissionsAsync === 'function'
+          ? await mod.requestMicrophonePermissionsAsync()
+          : await mod.requestPermissionsAsync?.();
+
+      if (!permission) {
+        setErrorText('当前设备暂不支持语音识别，请稍后重试');
+        return;
+      }
+
       if (!permission.granted) {
         setErrorText('没有麦克风/语音识别权限，请在系统设置中开启');
+        return;
+      }
+
+      const recognitionAvailable =
+        typeof mod.isRecognitionAvailable === 'function'
+          ? await Promise.resolve(mod.isRecognitionAvailable())
+          : true;
+      if (!recognitionAvailable) {
+        setErrorText('当前设备未开启语音识别，请检查系统里的 Siri 与听写设置');
         return;
       }
 
@@ -158,6 +192,7 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
         interimResults: true,
         addsPunctuation: true,
         continuous: true,
+        requiresOnDeviceRecognition: Platform.OS === 'ios',
       });
     } catch (e: any) {
       setIsRecording(false);
