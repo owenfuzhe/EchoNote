@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronLeft, Loader, Search, Send, Sparkles, SquarePen } from 'lucide-react-native';
+import { ChevronLeft, Loader, Mic, Search, Send, Sparkles, SquarePen } from 'lucide-react-native';
 import { chat } from '../services/bailian-chat';
 import { useNoteStore } from '../store/noteStore';
 import { AppView, ChatMessage } from '../types';
@@ -8,6 +8,7 @@ import { richTextToPreview } from '../utils/richText';
 
 interface Props {
   onNavigate: (view: AppView, noteId?: string) => void;
+  onOpenVoiceCapture?: () => void;
   initialInput?: string;
   initialInputVersion?: number;
   contextTitle?: string;
@@ -29,6 +30,7 @@ const FOCUSED_ACTIONS = [
 
 export default function AIChatView({
   onNavigate,
+  onOpenVoiceCapture,
   initialInput,
   initialInputVersion,
   contextTitle,
@@ -203,13 +205,19 @@ export default function AIChatView({
               <Text style={styles.sourceChipText}>{sourceLabel}</Text>
             </View>
 
-            <Pressable
-              onPress={() => send()}
-              style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
-              disabled={!input.trim() || loading}
-            >
-              <Send size={16} color="#ffffff" />
-            </Pressable>
+            <View style={styles.composerActions}>
+              <Pressable onPress={onOpenVoiceCapture} style={styles.micBtn}>
+                <Mic size={16} color="#44403c" />
+              </Pressable>
+
+              <Pressable
+                onPress={() => send()}
+                style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
+                disabled={!input.trim() || loading}
+              >
+                <Send size={16} color="#ffffff" />
+              </Pressable>
+            </View>
           </View>
         </View>
       </View>
@@ -434,6 +442,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  composerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   sourceChip: {
     minHeight: 34,
     borderRadius: 17,
@@ -450,6 +463,16 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: '#6b7280',
     fontWeight: '600',
+  },
+  micBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e8e1d6',
   },
   sendBtn: {
     width: 38,

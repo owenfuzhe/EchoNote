@@ -258,6 +258,16 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
     }, 320);
   };
 
+  const primaryRecordLabel = nativeMode
+    ? isRecording
+      ? '结束录音'
+      : outputText
+        ? '重新录音'
+        : '开始录音'
+    : isRefining
+      ? 'AI 微调中...'
+      : '微调文本';
+
   return (
     <Modal transparent visible={isOpen} animationType="fade" onRequestClose={onClose}>
       <View style={styles.mask}>
@@ -272,7 +282,9 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
 
           <Text style={styles.tip}>
             {nativeMode
-              ? (isRecording ? '正在收听，松开发送' : '长按下方麦克风开始说话')
+              ? isRecording
+                ? '正在录音，再点一次结束。'
+                : '点一下开始录音，再点一下结束并整理文本。'
               : '当前为兼容模式：Expo Go 使用手动输入；Dev Client/正式包可用原生语音识别'}
           </Text>
 
@@ -293,7 +305,7 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
               />
               <Pressable onPress={() => refineText(manualInput)} disabled={isRefining || !manualInput.trim()} style={[styles.holdBtn, (isRefining || !manualInput.trim()) && styles.disabledBtn]}>
                 <Mic size={18} color="white" />
-                <Text style={styles.holdBtnText}>{isRefining ? 'AI 微调中...' : '微调文本'}</Text>
+                <Text style={styles.holdBtnText}>{primaryRecordLabel}</Text>
               </Pressable>
             </>
           )}
@@ -302,13 +314,18 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
 
           {nativeMode && (
             <Pressable
-              onPressIn={startRecording}
-              onPressOut={stopRecordingAndRefine}
+              onPress={() => {
+                if (isRecording) {
+                  stopRecordingAndRefine();
+                  return;
+                }
+                void startRecording();
+              }}
               disabled={isRefining}
               style={[styles.holdBtn, isRecording && styles.holdBtnActive, isRefining && styles.disabledBtn]}
             >
               <Mic size={18} color="white" />
-              <Text style={styles.holdBtnText}>{isRecording ? '松开发送' : '按住说话'}</Text>
+              <Text style={styles.holdBtnText}>{primaryRecordLabel}</Text>
               <View style={[styles.levelBar, { width: `${Math.max(10, volume * 100)}%` }]} />
             </Pressable>
           )}

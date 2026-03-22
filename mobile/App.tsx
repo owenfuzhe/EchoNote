@@ -374,6 +374,7 @@ export default function App() {
           {currentView === 'aiChat' && (
             <AIChatView
               onNavigate={handleNavigate}
+              onOpenVoiceCapture={() => setIsVoiceCaptureOpen(true)}
               initialInput={aiDraftInput}
               initialInputVersion={aiDraftVersion}
               contextTitle={aiContextTitle}
