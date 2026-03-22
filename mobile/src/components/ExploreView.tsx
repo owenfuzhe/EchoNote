@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ArrowLeft, ChevronRight, Compass, Lightbulb, Plus, Sparkles } from 'lucide-react-native';
+import { exploreTopic, getCachedTopicExplore, type ExploreQuestionsResult } from '../services/ai-actions';
 import { buildTopicWorkspace, getExploreTopicOptions } from '../services/topic-workspace';
 import { getTemplateContent, recommendTemplates, recordTemplateUsage } from '../services/template-recommender';
 import { useNoteStore } from '../store/noteStore';
@@ -27,10 +28,70 @@ export default function ExploreView({
 }: Props) {
   const { notes, createNote } = useNoteStore();
   const [topicPickerOpen, setTopicPickerOpen] = useState(false);
+  const [aiReloadTick, setAiReloadTick] = useState(0);
+  const [aiState, setAiState] = useState<{
+    loading: boolean;
+    stale: boolean;
+    error: string;
+    result: ExploreQuestionsResult | null;
+  }>({
+    loading: false,
+    stale: false,
+    error: '',
+    result: null,
+  });
 
   const topicOptions = useMemo(() => getExploreTopicOptions(notes, customTopics), [notes, customTopics]);
   const workspace = useMemo(() => buildTopicWorkspace(notes, currentTopic, customTopics), [notes, currentTopic, customTopics]);
   const templates = useMemo(() => recommendTemplates(workspace.matchedNotes.length ? workspace.matchedNotes : notes, 2), [notes, workspace.matchedNotes]);
+  const aiSourceNotes = useMemo(() => {
+    return workspace.matchedNotes.length ? workspace.matchedNotes : notes.slice(0, 4);
+  }, [notes, workspace.matchedNotes]);
+
+  useEffect(() => {
+    if (!notes.length || !currentTopic.trim()) return;
+
+    let cancelled = false;
+
+    const load = async () => {
+      const cached = await getCachedTopicExplore(currentTopic, aiSourceNotes);
+      if (cancelled) return;
+
+      setAiState({
+        loading: true,
+        stale: Boolean(cached),
+        error: '',
+        result: cached,
+      });
+
+      try {
+        const result = await exploreTopic(currentTopic, aiSourceNotes);
+        if (cancelled) return;
+
+        setAiState({
+          loading: false,
+          stale: false,
+          error: '',
+          result,
+        });
+      } catch (error: any) {
+        if (cancelled) return;
+
+        setAiState((current) => ({
+          loading: false,
+          stale: Boolean(current.result || cached),
+          error: error?.message || 'AI 追问暂时不可用',
+          result: current.result || cached,
+        }));
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTopic, aiSourceNotes, notes.length, aiReloadTick]);
 
   if (!notes.length) {
     return (
@@ -129,19 +190,44 @@ export default function ExploreView({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>思辨挑战</Text>
+          <Text style={styles.sectionTitle}>AI 追问</Text>
           <View style={styles.quietCard}>
             <View style={styles.challengeHead}>
               <View style={styles.inlineLabelRow}>
                 <Sparkles size={14} color="#b91c1c" />
-                <Text style={styles.inlineLabel}>Spar</Text>
+                <Text style={styles.inlineLabel}>EchoNote AI</Text>
               </View>
-              <Text style={styles.challengePro}>Pro</Text>
+              {aiState.loading ? (
+                <View style={styles.challengeStatusWrap}>
+                  <ActivityIndicator size="small" color="#64748b" />
+                  <Text style={styles.challengeStatusText}>{aiState.stale ? '正在刷新' : '正在生成'}</Text>
+                </View>
+              ) : null}
             </View>
-            <Text style={styles.challengeEyebrow}>{workspace.challengeCard.eyebrow}</Text>
-            <Text style={styles.challengePrompt}>{workspace.challengeCard.prompt}</Text>
-            <Pressable style={styles.inlineAction} onPress={() => onOpenAIChallenge(workspace.challengePrompt)}>
-              <Text style={styles.inlineActionText}>{workspace.challengeCard.ctaLabel}</Text>
+            <Text style={styles.challengeEyebrow}>{aiState.result?.hook || workspace.challengeCard.eyebrow}</Text>
+            {(aiState.result?.questions?.length ? aiState.result.questions : [workspace.challengeCard.prompt]).map((question, index) => (
+              <Pressable key={`${index}-${question.slice(0, 16)}`} style={styles.questionRow} onPress={() => onOpenAIChallenge(question)}>
+                <Text style={styles.questionText}>{question}</Text>
+                <ChevronRight size={16} color="#94a3b8" />
+              </Pressable>
+            ))}
+            <View style={styles.challengeFooter}>
+              <Text style={styles.challengeNextLabel}>建议下一步</Text>
+              <Text style={styles.challengePrompt}>{aiState.result?.nextStep || workspace.challengePrompt}</Text>
+            </View>
+            {aiState.error ? (
+              <View style={styles.challengeErrorRow}>
+                <Text style={styles.challengeErrorText}>{aiState.error}</Text>
+                <Pressable style={styles.challengeRetryBtn} onPress={() => setAiReloadTick((value) => value + 1)}>
+                  <Text style={styles.challengeRetryText}>重试</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            <Pressable
+              style={styles.inlineAction}
+              onPress={() => onOpenAIChallenge(aiState.result?.nextStep || workspace.challengePrompt)}
+            >
+              <Text style={styles.inlineActionText}>继续和 AI 讨论</Text>
             </Pressable>
           </View>
         </View>
@@ -267,9 +353,44 @@ const styles = StyleSheet.create({
   inlineAction: { marginTop: 12, alignSelf: 'flex-start', paddingVertical: 4 },
   inlineActionText: { fontSize: 13, color: '#334155', fontWeight: '700' },
   challengeHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  challengePro: { fontSize: 11, color: '#9ca3af', fontWeight: '700' },
+  challengeStatusWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  challengeStatusText: { fontSize: 12, lineHeight: 16, color: '#64748b', fontWeight: '600' },
   challengeEyebrow: { marginTop: 10, fontSize: 12, color: '#64748b', fontWeight: '700' },
   challengePrompt: { marginTop: 8, fontSize: 15, lineHeight: 23, color: '#1f2937' },
+  questionRow: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#edf2f7',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  questionText: { flex: 1, fontSize: 14, lineHeight: 21, color: '#111827', fontWeight: '600' },
+  challengeFooter: {
+    marginTop: 12,
+    borderRadius: 14,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  challengeNextLabel: { fontSize: 12, lineHeight: 16, color: '#64748b', fontWeight: '700' },
+  challengeErrorRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  challengeErrorText: { flex: 1, fontSize: 12, lineHeight: 18, color: '#b45309' },
+  challengeRetryBtn: {
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#d6d3d1',
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  challengeRetryText: { fontSize: 12, color: '#334155', fontWeight: '700' },
   footerActions: { marginTop: 22, gap: 10 },
   footerGhostBtn: {
     height: 44,

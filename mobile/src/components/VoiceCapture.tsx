@@ -3,6 +3,7 @@ import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'r
 import { NativeModulesProxy } from 'expo-modules-core';
 import { Infinity, Mic, Sparkles, X } from 'lucide-react-native';
 import { chat } from '../services/bailian-chat';
+import { voiceCleanTranscript } from '../services/ai-actions';
 
 interface VoiceCaptureProps {
   isOpen: boolean;
@@ -19,7 +20,12 @@ type PermissionResponseLike = { granted: boolean };
 type SpeechModuleLike = {
   requestPermissionsAsync?: () => Promise<PermissionResponseLike>;
   requestMicrophonePermissionsAsync?: () => Promise<PermissionResponseLike>;
+  requestSpeechRecognizerPermissionsAsync?: () => Promise<PermissionResponseLike>;
+  getPermissionsAsync?: () => Promise<PermissionResponseLike>;
   isRecognitionAvailable?: () => boolean | Promise<boolean>;
+  supportsOnDeviceRecognition?: () => boolean | Promise<boolean>;
+  getStateAsync?: () => Promise<string>;
+  abort?: () => void;
   start: (options: Record<string, unknown>) => void;
   stop: () => void;
   addListener?: (eventName: string, listener: (event: any) => void) => { remove?: () => void };
@@ -135,14 +141,26 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
     setErrorText('');
 
     try {
-      const prompt = `请将以下语音草稿做轻量润色：\n- 保持原意，不要增加事实\n- 修复口语赘词、重复、标点和断句\n- 输出简洁自然的中文\n\n原文：\n${source}`;
-      const resp = await chat([{ role: 'user', content: prompt }], {
-        temperature: 0.2,
-        maxTokens: 600,
-        systemPrompt: '你是中文语音转写润色助手，只做轻量编辑，不扩写。',
-      });
-      const polished = (resp.content || '').trim();
-      setRefinedText(polished || fallbackRefine(source));
+      try {
+        const cleaned = await voiceCleanTranscript('语音输入', source);
+        const polished = cleaned.cleanedText?.trim() || '';
+        if (polished) {
+          setRefinedText(polished);
+          return;
+        }
+      } catch {
+        const prompt = `请将以下语音草稿做轻量润色：\n- 保持原意，不要增加事实\n- 修复口语赘词、重复、标点和断句\n- 输出简洁自然的中文\n\n原文：\n${source}`;
+        const resp = await chat([{ role: 'user', content: prompt }], {
+          temperature: 0.2,
+          maxTokens: 600,
+          systemPrompt: '你是中文语音转写润色助手，只做轻量编辑，不扩写。',
+        });
+        const polished = (resp.content || '').trim();
+        setRefinedText(polished || fallbackRefine(source));
+        return;
+      }
+
+      setRefinedText(fallbackRefine(source));
     } catch {
       setRefinedText(fallbackRefine(source));
       setErrorText('已完成基础润色（AI 润色暂不可用）');
@@ -157,9 +175,11 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
 
     try {
       const permission =
-        Platform.OS === 'ios' && typeof mod.requestMicrophonePermissionsAsync === 'function'
-          ? await mod.requestMicrophonePermissionsAsync()
-          : await mod.requestPermissionsAsync?.();
+        typeof mod.requestPermissionsAsync === 'function'
+          ? await mod.requestPermissionsAsync()
+          : Platform.OS === 'ios' && typeof mod.requestMicrophonePermissionsAsync === 'function'
+            ? await mod.requestMicrophonePermissionsAsync()
+            : await mod.getPermissionsAsync?.();
 
       if (!permission) {
         setErrorText('当前设备暂不支持语音识别，请稍后重试');
@@ -180,6 +200,23 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
         return;
       }
 
+      if (typeof mod.getStateAsync === 'function') {
+        const currentState = await mod.getStateAsync();
+        if (currentState && currentState !== 'inactive') {
+          try {
+            mod.abort?.();
+          } catch {
+            mod.stop();
+          }
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
+      }
+
+      const supportsOnDevice =
+        typeof mod.supportsOnDeviceRecognition === 'function'
+          ? await Promise.resolve(mod.supportsOnDeviceRecognition())
+          : false;
+
       setErrorText('');
       setRefinedText('');
       setDraftText('');
@@ -191,8 +228,13 @@ export default function VoiceCapture({ isOpen, onClose, onGenerateNote, onAskAI 
         lang: 'zh-CN',
         interimResults: true,
         addsPunctuation: true,
-        continuous: true,
-        requiresOnDeviceRecognition: Platform.OS === 'ios',
+        continuous: false,
+        requiresOnDeviceRecognition: Platform.OS === 'ios' && supportsOnDevice,
+        iosTaskHint: 'dictation',
+        volumeChangeEventOptions: {
+          enabled: true,
+          intervalMillis: 180,
+        },
       });
     } catch (e: any) {
       setIsRecording(false);

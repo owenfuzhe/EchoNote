@@ -140,20 +140,34 @@ function createAiRouter(aiService) {
     }
   });
 
-  router.get('/jobs/:jobId', (req, res) => {
-    const job = aiService.getJob(req.params.jobId);
-    if (!job) {
-      return res.status(404).json({ code: 'JOB_NOT_FOUND', message: 'Job not found' });
+  router.get('/jobs/:jobId', async (req, res) => {
+    try {
+      const job = await aiService.getJob(req.params.jobId);
+      if (!job) {
+        return res.status(404).json({ code: 'JOB_NOT_FOUND', message: 'Job not found' });
+      }
+      return res.json(job);
+    } catch (error) {
+      return res.status(500).json({
+        code: error.code || 'JOB_READ_ERROR',
+        message: error.message || 'Failed to load job',
+      });
     }
-    return res.json(job);
   });
 
-  router.get('/artifacts/:artifactId', (req, res) => {
-    const artifact = aiService.getArtifact(req.params.artifactId);
-    if (!artifact) {
-      return res.status(404).json({ code: 'ARTIFACT_NOT_FOUND', message: 'Artifact not found' });
+  router.get('/artifacts/:artifactId', async (req, res) => {
+    try {
+      const artifact = await aiService.getArtifact(req.params.artifactId);
+      if (!artifact) {
+        return res.status(404).json({ code: 'ARTIFACT_NOT_FOUND', message: 'Artifact not found' });
+      }
+      return res.json(artifact);
+    } catch (error) {
+      return res.status(500).json({
+        code: error.code || 'ARTIFACT_READ_ERROR',
+        message: error.message || 'Failed to load artifact',
+      });
     }
-    return res.json(artifact);
   });
 
   return router;

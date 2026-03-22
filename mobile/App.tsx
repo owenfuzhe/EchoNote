@@ -346,6 +346,7 @@ export default function App() {
               customExploreTopics={customExploreTopics}
               onSelectExploreTopic={handleSelectExploreTopic}
               onCreateExploreTopic={handleCreateExploreTopic}
+              onOpenAIAssistant={openAIAssistant}
             />
           )}
           {currentView === 'library' && <LibraryView onNavigate={handleNavigate} />}

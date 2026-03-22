@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Check, ChevronRight, FileText, Plus, Settings2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import {
@@ -10,6 +10,14 @@ import {
   State,
 } from 'react-native-gesture-handler';
 import { buildBriefing, getBriefingNotes } from '../services/briefing';
+import {
+  exploreNote,
+  getCachedNoteExplore,
+  getCachedQuickRead,
+  quickReadNote,
+  type ExploreQuestionsResult,
+  type QuickReadResult,
+} from '../services/ai-actions';
 import { buildTopicWorkspace, getExploreTopicOptions } from '../services/topic-workspace';
 import { useNoteStore } from '../store/noteStore';
 import { mobileType } from '../theme/typography';
@@ -25,6 +33,7 @@ interface Props {
   customExploreTopics: string[];
   onSelectExploreTopic: (topic: string) => void;
   onCreateExploreTopic: (topic: string) => void;
+  onOpenAIAssistant: (input?: string, context?: { title?: string; content?: string }) => void;
 }
 
 const SWIPE_TRIGGER_RIGHT = 42;
@@ -46,6 +55,7 @@ export default function HomeView({
   customExploreTopics,
   onSelectExploreTopic,
   onCreateExploreTopic,
+  onOpenAIAssistant,
 }: Props) {
   const { notes, updateNote } = useNoteStore();
   const recent = useMemo(() => notes.slice(0, 8), [notes]);
@@ -66,6 +76,22 @@ export default function HomeView({
   const nativeScrollRef = useRef<any>(null);
   const [briefingAdjustOpen, setBriefingAdjustOpen] = useState(false);
   const [topicPickerOpen, setTopicPickerOpen] = useState(false);
+  const [quickAiReloadTick, setQuickAiReloadTick] = useState(0);
+  const [quickAiState, setQuickAiState] = useState<{
+    noteId: string | null;
+    loading: boolean;
+    stale: boolean;
+    error: string;
+    quickRead: QuickReadResult | null;
+    explore: ExploreQuestionsResult | null;
+  }>({
+    noteId: null,
+    loading: false,
+    stale: false,
+    error: '',
+    quickRead: null,
+    explore: null,
+  });
 
   const translateX = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -109,6 +135,59 @@ export default function HomeView({
     const timer = setTimeout(() => setFeedback(''), 1200);
     return () => clearTimeout(timer);
   }, [feedback]);
+
+  useEffect(() => {
+    if (!quickReadOpen || !currentQuickNote) return;
+
+    const note = currentQuickNote;
+    let cancelled = false;
+
+    const load = async () => {
+      const [cachedQuickRead, cachedExplore] = await Promise.all([getCachedQuickRead(note), getCachedNoteExplore(note)]);
+      if (cancelled) return;
+
+      const hasCached = Boolean(cachedQuickRead || cachedExplore);
+      setQuickAiState({
+        noteId: note.id,
+        loading: true,
+        stale: hasCached,
+        error: '',
+        quickRead: cachedQuickRead,
+        explore: cachedExplore,
+      });
+
+      try {
+        const [liveQuickRead, liveExplore] = await Promise.all([quickReadNote(note), exploreNote(note)]);
+        if (cancelled) return;
+
+        setQuickAiState({
+          noteId: note.id,
+          loading: false,
+          stale: false,
+          error: '',
+          quickRead: liveQuickRead,
+          explore: liveExplore,
+        });
+      } catch (error: any) {
+        if (cancelled) return;
+
+        setQuickAiState((current) => ({
+          noteId: note.id,
+          loading: false,
+          stale: Boolean(current.quickRead || current.explore || hasCached),
+          error: error?.message || 'AI 解读暂时不可用',
+          quickRead: current.noteId === note.id ? current.quickRead || cachedQuickRead : cachedQuickRead,
+          explore: current.noteId === note.id ? current.explore || cachedExplore : cachedExplore,
+        }));
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [quickReadOpen, currentQuickNote?.id, currentQuickNote?.updatedAt, quickAiReloadTick]);
 
   const format = (d: string) => {
     const diff = Date.now() - new Date(d).getTime();
@@ -177,11 +256,18 @@ export default function HomeView({
     return ['升级 Pro+AI 会员以查看'];
   };
 
-  const briefingHook = 'F1上海站热度飙升，京东将国内电商经验复制到欧洲';
+  const briefingHook = useMemo(() => {
+    if (!briefingNotes.length) return '选择 3 到 5 篇内容，生成一页可回看的深读简报';
+    if (briefingNotes.length === 1) return briefingNotes[0].title || '单篇内容简报';
+    const titles = briefingNotes.slice(0, 2).map((note) => note.title || '未命名内容');
+    return `${titles[0]} · ${titles[1]}`;
+  }, [briefingNotes]);
 
   const briefingMeta = useMemo(() => {
     return `${briefing.notes.length}篇 · ${Math.max(briefing.notes.length + 1, 3)}分钟`;
   }, [briefing.notes.length]);
+  const activeQuickRead = quickAiState.noteId === currentQuickNote?.id ? quickAiState.quickRead : null;
+  const activeExplore = quickAiState.noteId === currentQuickNote?.id ? quickAiState.explore : null;
 
   const topicMeta = useMemo(() => {
     const articleCount = Math.max(topicWorkspace.noteCount, 1);
@@ -501,7 +587,7 @@ export default function HomeView({
         </ScrollView>
 
         <View style={[styles.sectionHeader, { marginTop: 22 }]}>
-          <Text style={styles.sTitle}>快读</Text>
+          <Text style={styles.sTitle}>简报</Text>
           <Pressable style={styles.moreIconBtn} onPress={() => setBriefingAdjustOpen(true)} hitSlop={10}>
             <Settings2 size={16} color="#a1a1aa" />
           </Pressable>
@@ -702,26 +788,65 @@ export default function HomeView({
                     contentContainerStyle={styles.quickBodyContent}
                   >
                 <View style={styles.quickSection}>
-                  <Text style={styles.quickLabel}>快读 / QUICK READ</Text>
-                  <Text style={styles.quickSummary}>{quickSummary(currentQuickNote)}</Text>
+                  <View style={styles.quickLabelRow}>
+                    <Text style={styles.quickLabel}>AI 快读</Text>
+                    {quickAiState.loading ? (
+                      <View style={styles.quickStatusWrap}>
+                        <ActivityIndicator size="small" color="#64748b" />
+                        <Text style={styles.quickStatusText}>{quickAiState.stale ? '正在刷新' : '正在生成'}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.quickSummary}>{activeQuickRead?.summary || quickSummary(currentQuickNote)}</Text>
                   <View style={styles.bulletWrap}>
-                    {quickBullets(currentQuickNote).slice(0, 2).map((b, idx) => (
+                    {(activeQuickRead?.bullets?.length ? activeQuickRead.bullets : quickBullets(currentQuickNote)).slice(0, 3).map((b, idx) => (
                       <Text key={`${idx}-${b.slice(0, 8)}`} style={styles.bulletText}>{`${idx + 1}. ${b}`}</Text>
                     ))}
                   </View>
+                  {quickAiState.error ? (
+                    <View style={styles.quickErrorRow}>
+                      <Text style={styles.quickErrorText}>{quickAiState.error}</Text>
+                      <Pressable style={styles.quickRetryBtn} onPress={() => setQuickAiReloadTick((value) => value + 1)}>
+                        <Text style={styles.quickRetryText}>重试</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.quickSection}>
                   <View style={styles.sectionRow}>
                     <Text style={styles.sectionTitle}>关键问题</Text>
-                    <Text style={styles.sectionAction}>全部展开</Text>
+                    <Text style={styles.sectionAction}>{activeExplore?.questions?.length ? '继续追问' : 'AI 生成中'}</Text>
                   </View>
-                  {quickQuestions(currentQuickNote).map((q, idx) => (
-                    <Pressable key={`${idx}-${q.slice(0, 6)}`} style={styles.questionRow}>
+                  {(activeExplore?.questions?.length ? activeExplore.questions : quickQuestions(currentQuickNote)).map((q, idx) => (
+                    <Pressable
+                      key={`${idx}-${q.slice(0, 6)}`}
+                      style={styles.questionRow}
+                      onPress={() =>
+                        onOpenAIAssistant(q, {
+                          title: currentQuickNote?.title,
+                          content: richTextToPlainText(currentQuickNote?.content || ''),
+                        })
+                      }
+                    >
                       <Text numberOfLines={2} style={styles.questionText}>{q}</Text>
                       <ChevronRight size={16} color="#cbd5e1" />
                     </Pressable>
                   ))}
+                  {activeExplore?.nextStep ? (
+                    <Pressable
+                      style={styles.nextStepCard}
+                      onPress={() =>
+                        onOpenAIAssistant(activeExplore.nextStep, {
+                          title: currentQuickNote?.title,
+                          content: richTextToPlainText(currentQuickNote?.content || ''),
+                        })
+                      }
+                    >
+                      <Text style={styles.nextStepLabel}>建议下一步</Text>
+                      <Text style={styles.nextStepText}>{activeExplore.nextStep}</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
 
                 <View style={styles.quickSection}>
@@ -1128,15 +1253,42 @@ const styles = StyleSheet.create({
   quickBody: { marginTop: 10, backgroundColor: 'white', borderRadius: 16, flex: 1, minHeight: 0 },
   quickBodyContent: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 18 },
   quickSection: { marginBottom: 14 },
+  quickLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   quickLabel: { fontSize: 18, color: '#d1d5db', fontWeight: '700' },
+  quickStatusWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  quickStatusText: { fontSize: 12, lineHeight: 16, color: '#64748b', fontWeight: '600' },
   quickSummary: { marginTop: 10, fontSize: 16, lineHeight: 26, color: '#1f2937' },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   sectionTitle: { fontSize: 18, color: '#d1d5db', fontWeight: '700' },
   sectionAction: { fontSize: 14, color: '#cbd5e1', fontWeight: '600' },
   bulletWrap: { marginTop: 12, gap: 8 },
   bulletText: { fontSize: 15, lineHeight: 23, color: '#111827', fontWeight: '500' },
+  quickErrorRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  quickErrorText: { flex: 1, fontSize: 12, lineHeight: 18, color: '#b45309' },
+  quickRetryBtn: {
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#d6d3d1',
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickRetryText: { fontSize: 12, color: '#334155', fontWeight: '700' },
   questionRow: { paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
   questionText: { flex: 1, fontSize: 15, lineHeight: 23, color: '#111827', fontWeight: '600' },
+  nextStepCard: {
+    marginTop: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#f8fbff',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  nextStepLabel: { fontSize: 12, lineHeight: 16, color: '#64748b', fontWeight: '700' },
+  nextStepText: { fontSize: 14, lineHeight: 21, color: '#1e3a8a' },
   collectRow: {
     marginTop: 8,
     minHeight: 44,

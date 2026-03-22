@@ -699,20 +699,28 @@ app.post('/api/fetch/web', async (req, res) => {
   }
 });
 
-app.get('/api/briefings/latest', (req, res) => {
-  const artifact = aiService.getLatestBriefing();
-  if (!artifact) {
-    return res.status(404).json({ code: 'BRIEFING_NOT_FOUND', message: 'No briefing artifact available' });
+app.get('/api/briefings/latest', async (req, res) => {
+  try {
+    const artifact = await aiService.getLatestBriefing();
+    if (!artifact) {
+      return res.status(404).json({ code: 'BRIEFING_NOT_FOUND', message: 'No briefing artifact available' });
+    }
+    return res.json(artifact);
+  } catch (error) {
+    return res.status(500).json({ code: error.code || 'BRIEFING_READ_ERROR', message: error.message || 'Failed to load briefing' });
   }
-  return res.json(artifact);
 });
 
-app.get('/api/podcasts/:artifactId', (req, res) => {
-  const artifact = aiService.getPodcast(req.params.artifactId);
-  if (!artifact) {
-    return res.status(404).json({ code: 'PODCAST_NOT_FOUND', message: 'Podcast artifact not found' });
+app.get('/api/podcasts/:artifactId', async (req, res) => {
+  try {
+    const artifact = await aiService.getPodcast(req.params.artifactId);
+    if (!artifact) {
+      return res.status(404).json({ code: 'PODCAST_NOT_FOUND', message: 'Podcast artifact not found' });
+    }
+    return res.json(artifact);
+  } catch (error) {
+    return res.status(500).json({ code: error.code || 'PODCAST_READ_ERROR', message: error.message || 'Failed to load podcast artifact' });
   }
-  return res.json(artifact);
 });
 
 // Start server

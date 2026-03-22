@@ -34,6 +34,35 @@ create table if not exists note_tags (
   primary key (note_id, tag_id)
 );
 
+create table if not exists ai_jobs (
+  id text primary key,
+  type text not null,
+  provider text not null,
+  status text not null,
+  input_json jsonb not null default '{}'::jsonb,
+  artifact_id text,
+  error_json jsonb,
+  started_at timestamptz,
+  finished_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists ai_artifacts (
+  id text primary key,
+  type text not null,
+  title text not null,
+  provider text not null,
+  job_id text references ai_jobs(id) on delete set null,
+  data_json jsonb not null default '{}'::jsonb,
+  meta_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_notes_owner_updated_at on notes(owner_id, updated_at desc);
 create index if not exists idx_note_tags_tag_id on note_tags(tag_id);
 create index if not exists idx_tags_owner_name on tags(owner_id, name);
+create index if not exists idx_ai_jobs_type_created_at on ai_jobs(type, created_at desc);
+create index if not exists idx_ai_artifacts_type_created_at on ai_artifacts(type, created_at desc);
+create index if not exists idx_ai_artifacts_job_id on ai_artifacts(job_id);

@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowLeft, BookOpen, ChevronRight, Headphones, Link2 } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ArrowLeft, BookOpen, ChevronRight, Link2, RefreshCw } from 'lucide-react-native';
+import { generateBriefing, getCachedBriefing, type BriefingArtifact } from '../services/ai-actions';
+import { getBriefingNotes } from '../services/briefing';
 import { useNoteStore } from '../store/noteStore';
-import { buildBriefing, getBriefingNotes } from '../services/briefing';
 import { AppView } from '../types';
 
 interface Props {
@@ -10,12 +11,90 @@ interface Props {
   selectedNoteIds: string[];
 }
 
+function formatDateLabel(date?: string) {
+  const value = date ? new Date(date) : new Date();
+  const month = `${value.getMonth() + 1}`.padStart(2, '0');
+  const day = `${value.getDate()}`.padStart(2, '0');
+  return `${month}月${day}日`;
+}
+
 export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
   const { notes } = useNoteStore();
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
+  const [briefingState, setBriefingState] = useState<{
+    loading: boolean;
+    stale: boolean;
+    statusLabel: string;
+    error: string;
+    artifact: BriefingArtifact | null;
+  }>({
+    loading: false,
+    stale: false,
+    statusLabel: '',
+    error: '',
+    artifact: null,
+  });
 
   const pickedNotes = useMemo(() => getBriefingNotes(notes, selectedNoteIds), [notes, selectedNoteIds]);
-  const briefing = useMemo(() => buildBriefing(pickedNotes), [pickedNotes]);
+
+  useEffect(() => {
+    if (!pickedNotes.length) return;
+
+    let cancelled = false;
+
+    const load = async () => {
+      const cached = await getCachedBriefing(pickedNotes);
+      if (cancelled) return;
+
+      setBriefingState({
+        loading: true,
+        stale: Boolean(cached),
+        statusLabel: '正在提交给 AI',
+        error: '',
+        artifact: cached,
+      });
+
+      try {
+        const artifact = await generateBriefing(pickedNotes, {
+          onStatus: (status) => {
+            if (cancelled) return;
+            setBriefingState((current) => ({
+              ...current,
+              loading: status !== 'succeeded',
+              statusLabel: status === 'queued' ? '正在排队' : status === 'running' ? '正在生成简报' : '即将完成',
+            }));
+          },
+        });
+
+        if (cancelled) return;
+
+        setBriefingState({
+          loading: false,
+          stale: false,
+          statusLabel: '已更新',
+          error: '',
+          artifact,
+        });
+      } catch (error: any) {
+        if (cancelled) return;
+
+        setBriefingState((current) => ({
+          loading: false,
+          stale: Boolean(current.artifact || cached),
+          statusLabel: current.artifact ? '已展示最近结果' : '',
+          error: error?.message || '生成简报失败',
+          artifact: current.artifact || cached,
+        }));
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pickedNotes, reloadTick]);
 
   if (!pickedNotes.length) {
     return (
@@ -29,6 +108,11 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
     );
   }
 
+  const artifact = briefingState.artifact;
+  const data = artifact?.data;
+  const dateLabel = formatDateLabel(data?.generatedAt || artifact?.createdAt);
+  const coverageLabel = `包含 ${data?.sourceCount || pickedNotes.length} 篇内容`;
+
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -38,45 +122,89 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
             <Text style={styles.backIconText}>返回</Text>
           </Pressable>
 
-          <Pressable
-            style={styles.proPill}
-            onPress={() => Alert.alert('升级为播客', '播客版简报将作为 Pro 功能开放，并带有额度提示。')}
-          >
-            <Headphones size={14} color="#0f172a" />
-            <Text style={styles.proPillText}>播客 Pro</Text>
+          <Pressable style={styles.refreshPill} onPress={() => setReloadTick((value) => value + 1)} disabled={briefingState.loading}>
+            {briefingState.loading ? <ActivityIndicator size="small" color="#44403c" /> : <RefreshCw size={14} color="#0f172a" />}
+            <Text style={styles.refreshPillText}>{briefingState.loading ? '生成中' : '重新生成'}</Text>
           </Pressable>
         </View>
 
-        <Text style={styles.title}>{briefing.title}</Text>
-        <Text style={styles.meta}>{`${briefing.dateLabel} · ${briefing.coverageLabel}`}</Text>
+        {!artifact && briefingState.loading ? (
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="small" color="#334155" />
+            <Text style={styles.loadingTitle}>正在生成本期简报</Text>
+            <Text style={styles.loadingDesc}>{briefingState.statusLabel || '把多篇内容收束成一页可回看的判断'}</Text>
+          </View>
+        ) : null}
 
-        <View style={styles.summaryBlock}>
-          <Text style={styles.sectionEyebrow}>一句话核心摘要</Text>
-          <Text style={styles.summaryText}>{briefing.oneLiner}</Text>
-        </View>
+        {!artifact && briefingState.error ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorTitle}>这次生成没有成功</Text>
+            <Text style={styles.errorDesc}>{briefingState.error}</Text>
+            <Pressable style={styles.retryBtn} onPress={() => setReloadTick((value) => value + 1)}>
+              <Text style={styles.retryBtnText}>重新生成</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
-        <View style={styles.analysisBlock}>
-          <Text style={styles.sectionEyebrow}>要点</Text>
-          {briefing.sections.map((section, index) => (
-            <View key={section.id} style={styles.sectionCard}>
-              <View style={styles.sectionTitleRow}>
-                <Text style={styles.sectionIndex}>{`${String(index + 1).padStart(2, '0')}.`}</Text>
-                <View style={styles.sectionTitleWrap}>
-                  <Text style={styles.sectionTitle}>{section.title}</Text>
-                  <Text style={styles.sectionSource}>{section.source}</Text>
-                </View>
+        {artifact ? (
+          <>
+            <Text style={styles.title}>{data?.title || artifact.title}</Text>
+            <Text style={styles.meta}>{`${dateLabel} · ${coverageLabel}`}</Text>
+
+            {briefingState.loading || briefingState.error ? (
+              <View style={styles.stateRow}>
+                {briefingState.loading ? <ActivityIndicator size="small" color="#64748b" /> : null}
+                <Text style={styles.stateText}>
+                  {briefingState.loading
+                    ? briefingState.stale
+                      ? '正在刷新当前简报'
+                      : briefingState.statusLabel || '正在生成'
+                    : briefingState.error || briefingState.statusLabel}
+                </Text>
               </View>
-              <Text style={styles.sectionInsight}>{section.insight}</Text>
-              <Text style={styles.sectionAction}>{section.action}</Text>
-            </View>
-          ))}
-        </View>
+            ) : null}
 
-        <Pressable style={styles.sourcesBtn} onPress={() => setSourcesOpen(true)}>
-          <Link2 size={15} color="#0f172a" />
-          <Text style={styles.sourcesBtnText}>{`查看 ${briefing.notes.length} 篇原文链接`}</Text>
-          <ChevronRight size={16} color="#64748b" />
-        </Pressable>
+            <View style={styles.summaryBlock}>
+              <Text style={styles.sectionEyebrow}>一句话核心摘要</Text>
+              <Text style={styles.summaryText}>{data?.oneLiner || data?.summary || '本期内容已经整理完成。'}</Text>
+              {data?.summary && data.summary !== data.oneLiner ? <Text style={styles.summarySub}>{data.summary}</Text> : null}
+            </View>
+
+            {!!data?.bullets?.length && (
+              <View style={styles.analysisBlock}>
+                <Text style={styles.sectionEyebrow}>关键信号</Text>
+                {data.bullets.map((bullet, index) => (
+                  <View key={`${index}-${bullet.slice(0, 12)}`} style={styles.bulletRow}>
+                    <Text style={styles.bulletIndex}>{`${String(index + 1).padStart(2, '0')}.`}</Text>
+                    <Text style={styles.bulletText}>{bullet}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.analysisBlock}>
+              <Text style={styles.sectionEyebrow}>要点拆解</Text>
+              {(data?.sections?.length ? data.sections : []).map((section, index) => (
+                <View key={section.id} style={styles.sectionCard}>
+                  <View style={styles.sectionTitleRow}>
+                    <Text style={styles.sectionIndex}>{`${String(index + 1).padStart(2, '0')}.`}</Text>
+                    <View style={styles.sectionTitleWrap}>
+                      <Text style={styles.sectionTitle}>{section.title}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.sectionInsight}>{section.summary}</Text>
+                  <Text style={styles.sectionAction}>{section.keyPoint}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Pressable style={styles.sourcesBtn} onPress={() => setSourcesOpen(true)}>
+              <Link2 size={15} color="#0f172a" />
+              <Text style={styles.sourcesBtnText}>{`查看 ${pickedNotes.length} 篇原文链接`}</Text>
+              <ChevronRight size={16} color="#64748b" />
+            </Pressable>
+          </>
+        ) : null}
       </ScrollView>
 
       <Modal visible={sourcesOpen} transparent animationType="slide" onRequestClose={() => setSourcesOpen(false)}>
@@ -87,7 +215,7 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
             <Text style={styles.sheetTitle}>本期收录内容</Text>
             <Text style={styles.sheetDesc}>点击任意条目，跳转到原文笔记继续阅读。</Text>
 
-            {briefing.notes.map((note) => (
+            {pickedNotes.map((note) => (
               <Pressable
                 key={note.id}
                 style={styles.sourceRow}
@@ -101,7 +229,7 @@ export default function BriefingView({ onNavigate, selectedNoteIds }: Props) {
                 </View>
                 <View style={styles.sourceRowBody}>
                   <Text numberOfLines={2} style={styles.sourceRowTitle}>{note.title}</Text>
-                  <Text style={styles.sourceRowMeta}>{briefing.dateLabel}</Text>
+                  <Text style={styles.sourceRowMeta}>{dateLabel}</Text>
                 </View>
                 <ChevronRight size={16} color="#94a3b8" />
               </Pressable>
@@ -119,8 +247,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backIconBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backIconText: { fontSize: 15, color: '#0f172a', fontWeight: '700' },
-  proPill: {
-    height: 34,
+  refreshPill: {
+    minHeight: 34,
     borderRadius: 17,
     backgroundColor: '#f5f5f4',
     paddingHorizontal: 12,
@@ -130,9 +258,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e7e5e4',
   },
-  proPillText: { fontSize: 13, color: '#44403c', fontWeight: '700' },
+  refreshPillText: { fontSize: 13, color: '#44403c', fontWeight: '700' },
   title: { marginTop: 18, fontSize: 30, lineHeight: 36, color: '#0f172a', fontWeight: '900' },
   meta: { marginTop: 8, fontSize: 14, color: '#64748b', fontWeight: '600' },
+  stateRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stateText: { fontSize: 12, lineHeight: 18, color: '#64748b', fontWeight: '600' },
+  loadingCard: {
+    marginTop: 24,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e7e5e4',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingTitle: { fontSize: 18, color: '#111827', fontWeight: '800' },
+  loadingDesc: { fontSize: 13, lineHeight: 20, color: '#64748b', textAlign: 'center' },
+  errorCard: {
+    marginTop: 24,
+    borderRadius: 24,
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+  },
+  errorTitle: { fontSize: 18, color: '#9a3412', fontWeight: '800' },
+  errorDesc: { fontSize: 13, lineHeight: 20, color: '#9a3412' },
+  retryBtn: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    minHeight: 40,
+    borderRadius: 14,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  retryBtnText: { fontSize: 14, color: 'white', fontWeight: '800' },
   summaryBlock: {
     marginTop: 22,
     borderRadius: 20,
@@ -153,6 +319,10 @@ const styles = StyleSheet.create({
   },
   sectionEyebrow: { fontSize: 13, color: '#78716c', fontWeight: '800' },
   summaryText: { marginTop: 8, fontSize: 17, lineHeight: 28, color: '#292524' },
+  summarySub: { marginTop: 8, fontSize: 14, lineHeight: 22, color: '#57534e' },
+  bulletRow: { marginTop: 12, flexDirection: 'row', alignItems: 'flex-start' },
+  bulletIndex: { fontSize: 16, color: '#a16207', fontWeight: '800', width: 28 },
+  bulletText: { flex: 1, fontSize: 15, lineHeight: 24, color: '#1f2937' },
   sectionCard: {
     marginTop: 12,
     paddingVertical: 10,
@@ -163,7 +333,6 @@ const styles = StyleSheet.create({
   sectionIndex: { fontSize: 16, color: '#a16207', fontWeight: '800', width: 28 },
   sectionTitleWrap: { flex: 1 },
   sectionTitle: { fontSize: 16, lineHeight: 22, color: '#111827', fontWeight: '700' },
-  sectionSource: { marginTop: 2, fontSize: 12, color: '#a8a29e' },
   sectionInsight: { marginTop: 8, fontSize: 14, lineHeight: 22, color: '#1f2937' },
   sectionAction: { marginTop: 6, fontSize: 13, lineHeight: 20, color: '#78716c' },
   sourcesBtn: {

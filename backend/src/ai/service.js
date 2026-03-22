@@ -37,15 +37,15 @@ function createAiService(config = {}) {
 
   async function enqueueJob(type, artifactType, payload = {}) {
     const provider = getProvider(payload.provider);
-    const job = createJob({ type, provider: provider.name, input: payload });
+    const job = await createJob({ type, provider: provider.name, input: payload });
 
     Promise.resolve()
       .then(async () => {
-        updateJob(job.id, { status: 'running', startedAt: new Date().toISOString() });
+        await updateJob(job.id, { status: 'running', startedAt: new Date().toISOString() });
         const generator =
           type === 'briefing.generate' ? provider.generateBriefing.bind(provider) : provider.generatePodcast.bind(provider);
         const data = await generator(payload);
-        const artifact = createArtifact({
+        const artifact = await createArtifact({
           type: artifactType,
           title: data.title,
           provider: provider.name,
@@ -56,14 +56,14 @@ function createAiService(config = {}) {
           },
         });
 
-        updateJob(job.id, {
+        await updateJob(job.id, {
           status: 'succeeded',
           artifactId: artifact.id,
           finishedAt: new Date().toISOString(),
         });
       })
-      .catch((error) => {
-        updateJob(job.id, {
+      .catch(async (error) => {
+        await updateJob(job.id, {
           status: 'failed',
           error: {
             code: error.code || 'AI_JOB_FAILED',
@@ -127,17 +127,17 @@ function createAiService(config = {}) {
     async createPodcastJob(payload = {}) {
       return enqueueJob('podcast.generate', 'podcast', payload);
     },
-    getJob(jobId) {
+    async getJob(jobId) {
       return getJob(jobId);
     },
-    getArtifact(artifactId) {
+    async getArtifact(artifactId) {
       return getArtifact(artifactId);
     },
-    getLatestBriefing() {
+    async getLatestBriefing() {
       return getLatestArtifactByType('briefing');
     },
-    getPodcast(artifactId) {
-      const artifact = getArtifact(artifactId);
+    async getPodcast(artifactId) {
+      const artifact = await getArtifact(artifactId);
       if (!artifact || artifact.type !== 'podcast') return null;
       return artifact;
     },
