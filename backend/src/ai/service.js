@@ -35,9 +35,15 @@ function createAiService(config = {}) {
     return provider;
   }
 
+  function resolveOwnerId(payload = {}) {
+    const candidate = payload.ownerId || payload.userId || payload.user_id;
+    return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+  }
+
   async function enqueueJob(type, artifactType, payload = {}) {
     const provider = getProvider(payload.provider);
-    const job = await createJob({ type, provider: provider.name, input: payload });
+    const ownerId = resolveOwnerId(payload);
+    const job = await createJob({ type, provider: provider.name, input: payload, ownerId });
 
     Promise.resolve()
       .then(async () => {
@@ -50,6 +56,7 @@ function createAiService(config = {}) {
           title: data.title,
           provider: provider.name,
           jobId: job.id,
+          ownerId,
           data,
           meta: {
             sourceCount: data.sourceCount || (Array.isArray(payload.items) ? payload.items.length : undefined),
@@ -127,17 +134,17 @@ function createAiService(config = {}) {
     async createPodcastJob(payload = {}) {
       return enqueueJob('podcast.generate', 'podcast', payload);
     },
-    async getJob(jobId) {
-      return getJob(jobId);
+    async getJob(jobId, ownerId) {
+      return getJob(jobId, ownerId);
     },
-    async getArtifact(artifactId) {
-      return getArtifact(artifactId);
+    async getArtifact(artifactId, ownerId) {
+      return getArtifact(artifactId, ownerId);
     },
-    async getLatestBriefing() {
-      return getLatestArtifactByType('briefing');
+    async getLatestBriefing(ownerId) {
+      return getLatestArtifactByType('briefing', ownerId);
     },
-    async getPodcast(artifactId) {
-      const artifact = await getArtifact(artifactId);
+    async getPodcast(artifactId, ownerId) {
+      const artifact = await getArtifact(artifactId, ownerId);
       if (!artifact || artifact.type !== 'podcast') return null;
       return artifact;
     },

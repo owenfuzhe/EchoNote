@@ -129,6 +129,21 @@ function proxyWechatImageHtml(html = '', req) {
   return $.html() || input;
 }
 
+function readAiOwnerId(req) {
+  const candidates = [
+    req.get('x-echonote-owner-id'),
+    req.get('x-echonote-user-id'),
+    req.query?.ownerId,
+    req.query?.userId,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+
+  return null;
+}
+
 async function fetchFromParser(endpoint, payload) {
   return parserClient.request(endpoint, payload);
 }
@@ -702,7 +717,7 @@ app.post('/api/fetch/web', async (req, res) => {
 
 app.get('/api/briefings/latest', async (req, res) => {
   try {
-    const artifact = await aiService.getLatestBriefing();
+    const artifact = await aiService.getLatestBriefing(readAiOwnerId(req));
     if (!artifact) {
       return res.status(404).json({ code: 'BRIEFING_NOT_FOUND', message: 'No briefing artifact available' });
     }
@@ -714,7 +729,7 @@ app.get('/api/briefings/latest', async (req, res) => {
 
 app.get('/api/podcasts/:artifactId', async (req, res) => {
   try {
-    const artifact = await aiService.getPodcast(req.params.artifactId);
+    const artifact = await aiService.getPodcast(req.params.artifactId, readAiOwnerId(req));
     if (!artifact) {
       return res.status(404).json({ code: 'PODCAST_NOT_FOUND', message: 'Podcast artifact not found' });
     }

@@ -9,19 +9,48 @@ function extractTextPayload(payload = {}) {
   return String(text || '').trim();
 }
 
+function readOwnerId(req, payload = {}) {
+  const candidates = [
+    payload.ownerId,
+    payload.userId,
+    payload.user_id,
+    req.get('x-echonote-owner-id'),
+    req.get('x-echonote-user-id'),
+    req.query?.ownerId,
+    req.query?.userId,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+
+  return null;
+}
+
+function attachOwner(payload = {}, ownerId) {
+  if (!ownerId) return payload;
+  return {
+    ...payload,
+    ownerId,
+    userId: payload.userId || payload.user_id || ownerId,
+  };
+}
+
 function createAiRouter(aiService) {
   const router = express.Router();
 
   router.post('/chat', async (req, res) => {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    const messages = Array.isArray(payload.messages) ? payload.messages : [];
+    const ownerId = readOwnerId(req, payload);
+    const scopedPayload = attachOwner(payload, ownerId);
+    const messages = Array.isArray(scopedPayload.messages) ? scopedPayload.messages : [];
 
     if (!messages.length) {
       return badRequest(res, 'MISSING_MESSAGES', 'messages is required');
     }
 
     try {
-      const result = await aiService.chat(payload);
+      const result = await aiService.chat(scopedPayload);
       return res.json(result);
     } catch (error) {
       const status = error.code === 'AI_NOT_CONFIGURED' ? 503 : error.code === 'UNSUPPORTED_PROVIDER' ? 400 : 500;
@@ -34,12 +63,14 @@ function createAiRouter(aiService) {
 
   router.post('/quick-read', async (req, res) => {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    if (!extractTextPayload(payload) && !(Array.isArray(payload.items) && payload.items.length)) {
+    const ownerId = readOwnerId(req, payload);
+    const scopedPayload = attachOwner(payload, ownerId);
+    if (!extractTextPayload(scopedPayload) && !(Array.isArray(scopedPayload.items) && scopedPayload.items.length)) {
       return badRequest(res, 'MISSING_CONTENT', 'content or items is required');
     }
 
     try {
-      const result = await aiService.quickRead(payload);
+      const result = await aiService.quickRead(scopedPayload);
       return res.json(result);
     } catch (error) {
       const status = error.code === 'AI_NOT_CONFIGURED' ? 503 : error.code === 'UNSUPPORTED_PROVIDER' ? 400 : 500;
@@ -52,12 +83,14 @@ function createAiRouter(aiService) {
 
   router.post('/explore-questions', async (req, res) => {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    if (!payload.topic && !extractTextPayload(payload) && !(Array.isArray(payload.items) && payload.items.length)) {
+    const ownerId = readOwnerId(req, payload);
+    const scopedPayload = attachOwner(payload, ownerId);
+    if (!scopedPayload.topic && !extractTextPayload(scopedPayload) && !(Array.isArray(scopedPayload.items) && scopedPayload.items.length)) {
       return badRequest(res, 'MISSING_TOPIC', 'topic, content, or items is required');
     }
 
     try {
-      const result = await aiService.exploreQuestions(payload);
+      const result = await aiService.exploreQuestions(scopedPayload);
       return res.json(result);
     } catch (error) {
       const status = error.code === 'AI_NOT_CONFIGURED' ? 503 : error.code === 'UNSUPPORTED_PROVIDER' ? 400 : 500;
@@ -70,12 +103,14 @@ function createAiRouter(aiService) {
 
   router.post('/article-to-note', async (req, res) => {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    if (!extractTextPayload(payload)) {
+    const ownerId = readOwnerId(req, payload);
+    const scopedPayload = attachOwner(payload, ownerId);
+    if (!extractTextPayload(scopedPayload)) {
       return badRequest(res, 'MISSING_CONTENT', 'content is required');
     }
 
     try {
-      const result = await aiService.articleToNote(payload);
+      const result = await aiService.articleToNote(scopedPayload);
       return res.json(result);
     } catch (error) {
       const status = error.code === 'AI_NOT_CONFIGURED' ? 503 : error.code === 'UNSUPPORTED_PROVIDER' ? 400 : 500;
@@ -88,12 +123,14 @@ function createAiRouter(aiService) {
 
   router.post('/voice-clean', async (req, res) => {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    if (!extractTextPayload(payload)) {
+    const ownerId = readOwnerId(req, payload);
+    const scopedPayload = attachOwner(payload, ownerId);
+    if (!extractTextPayload(scopedPayload)) {
       return badRequest(res, 'MISSING_TRANSCRIPT', 'transcript or content is required');
     }
 
     try {
-      const result = await aiService.voiceClean(payload);
+      const result = await aiService.voiceClean(scopedPayload);
       return res.json(result);
     } catch (error) {
       const status = error.code === 'AI_NOT_CONFIGURED' ? 503 : error.code === 'UNSUPPORTED_PROVIDER' ? 400 : 500;
@@ -106,12 +143,14 @@ function createAiRouter(aiService) {
 
   router.post('/jobs/briefing', async (req, res) => {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    if (!extractTextPayload(payload) && !(Array.isArray(payload.items) && payload.items.length)) {
+    const ownerId = readOwnerId(req, payload);
+    const scopedPayload = attachOwner(payload, ownerId);
+    if (!extractTextPayload(scopedPayload) && !(Array.isArray(scopedPayload.items) && scopedPayload.items.length)) {
       return badRequest(res, 'MISSING_CONTENT', 'content or items is required');
     }
 
     try {
-      const result = await aiService.createBriefingJob(payload);
+      const result = await aiService.createBriefingJob(scopedPayload);
       return res.status(202).json(result);
     } catch (error) {
       const status = error.code === 'AI_NOT_CONFIGURED' ? 503 : error.code === 'UNSUPPORTED_PROVIDER' ? 400 : 500;
@@ -124,12 +163,14 @@ function createAiRouter(aiService) {
 
   router.post('/jobs/podcast', async (req, res) => {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    if (!extractTextPayload(payload) && !(Array.isArray(payload.items) && payload.items.length)) {
+    const ownerId = readOwnerId(req, payload);
+    const scopedPayload = attachOwner(payload, ownerId);
+    if (!extractTextPayload(scopedPayload) && !(Array.isArray(scopedPayload.items) && scopedPayload.items.length)) {
       return badRequest(res, 'MISSING_CONTENT', 'content or items is required');
     }
 
     try {
-      const result = await aiService.createPodcastJob(payload);
+      const result = await aiService.createPodcastJob(scopedPayload);
       return res.status(202).json(result);
     } catch (error) {
       const status = error.code === 'AI_NOT_CONFIGURED' ? 503 : error.code === 'UNSUPPORTED_PROVIDER' ? 400 : 500;
@@ -142,7 +183,7 @@ function createAiRouter(aiService) {
 
   router.get('/jobs/:jobId', async (req, res) => {
     try {
-      const job = await aiService.getJob(req.params.jobId);
+      const job = await aiService.getJob(req.params.jobId, readOwnerId(req));
       if (!job) {
         return res.status(404).json({ code: 'JOB_NOT_FOUND', message: 'Job not found' });
       }
@@ -157,7 +198,7 @@ function createAiRouter(aiService) {
 
   router.get('/artifacts/:artifactId', async (req, res) => {
     try {
-      const artifact = await aiService.getArtifact(req.params.artifactId);
+      const artifact = await aiService.getArtifact(req.params.artifactId, readOwnerId(req));
       if (!artifact) {
         return res.status(404).json({ code: 'ARTIFACT_NOT_FOUND', message: 'Artifact not found' });
       }

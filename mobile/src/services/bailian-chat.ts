@@ -1,4 +1,5 @@
 import { ChatMessage } from '../types';
+import { getAiOwnerId } from './ai-identity';
 import { getBackendUrl } from './backend-config';
 
 const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/api/v1';
@@ -30,15 +31,20 @@ async function chatViaBackend(messages: ChatMessage[], options: ChatOptions): Pr
   if (!backendUrl) {
     throw new BailianChatError('缺少后端地址', 'MISSING_BACKEND_URL');
   }
+  const ownerId = await getAiOwnerId();
 
   let response: Response;
   try {
     response = await fetch(`${backendUrl}/api/ai/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-EchoNote-Owner-Id': ownerId,
+      },
       body: JSON.stringify({
         messages,
         options,
+        userId: ownerId,
       }),
     });
   } catch (e: any) {

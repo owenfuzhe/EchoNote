@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Note } from '../types';
+import { getAiOwnerId } from './ai-identity';
 import { getBackendUrl } from './backend-config';
 import { richTextToPlainText } from '../utils/richText';
 
@@ -125,13 +126,18 @@ async function requestJSON<T>(path: string, init: RequestInit = {}, timeout = DE
   if (!backendUrl) {
     throw new Error('缺少后端地址');
   }
+  const ownerId = await getAiOwnerId();
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
     const response = await fetch(`${backendUrl}${path}`, {
-      headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-EchoNote-Owner-Id': ownerId,
+        ...(init.headers || {}),
+      },
       signal: controller.signal,
       ...init,
     });

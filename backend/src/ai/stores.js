@@ -17,10 +17,15 @@ function clone(value) {
   return value ? JSON.parse(JSON.stringify(value)) : value;
 }
 
+function normalizeOwnerId(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 function mapJobRow(row) {
   if (!row) return null;
   return {
     id: row.id,
+    ownerId: row.owner_id || undefined,
     type: row.type,
     provider: row.provider,
     status: row.status,
@@ -38,6 +43,7 @@ function mapArtifactRow(row) {
   if (!row) return null;
   return {
     id: row.id,
+    ownerId: row.owner_id || undefined,
     type: row.type,
     title: row.title,
     provider: row.provider,
@@ -57,6 +63,7 @@ async function ensureAiTables() {
     await query(`
       create table if not exists ai_jobs (
         id text primary key,
+        owner_id text,
         type text not null,
         provider text not null,
         status text not null,
@@ -71,6 +78,7 @@ async function ensureAiTables() {
 
       create table if not exists ai_artifacts (
         id text primary key,
+        owner_id text,
         type text not null,
         title text not null,
         provider text not null,
@@ -81,8 +89,13 @@ async function ensureAiTables() {
         updated_at timestamptz not null default now()
       );
 
+      alter table if exists ai_jobs add column if not exists owner_id text;
+      alter table if exists ai_artifacts add column if not exists owner_id text;
+
       create index if not exists idx_ai_jobs_type_created_at on ai_jobs(type, created_at desc);
+      create index if not exists idx_ai_jobs_owner_type_created_at on ai_jobs(owner_id, type, created_at desc);
       create index if not exists idx_ai_artifacts_type_created_at on ai_artifacts(type, created_at desc);
+      create index if not exists idx_ai_artifacts_owner_type_created_at on ai_artifacts(owner_id, type, created_at desc);
       create index if not exists idx_ai_artifacts_job_id on ai_artifacts(job_id);
     `);
 
@@ -95,9 +108,10 @@ async function ensureAiTables() {
   }
 }
 
-async function createJob({ type, provider, input }) {
+async function createJob({ type, provider, input, ownerId }) {
   const job = {
     id: genId('job'),
+    ownerId: normalizeOwnerId(ownerId) || undefined,
     type,
     provider,
     status: 'queued',
@@ -109,10 +123,10 @@ async function createJob({ type, provider, input }) {
   if (await ensureAiTables()) {
     await query(
       `
-        insert into ai_jobs (id, type, provider, status, input_json, created_at, updated_at)
-        values ($1, $2, $3, $4, $5::jsonb, $6::timestamptz, $7::timestamptz)
+        insert into ai_jobs (id, owner_id, type, provider, status, input_json, created_at, updated_at)
+        values ($1, $2, $3, $4, $5, $6::jsonb, $7::timestamptz, $8::timestamptz)
       `,
-      [job.id, job.type, job.provider, job.status, JSON.stringify(job.input || {}), job.createdAt, job.updatedAt]
+      [job.id, job.ownerId || null, job.type, job.provider, job.status, JSON.stringify(job.input || {}), job.createdAt, job.updatedAt]
     );
     return clone(job);
   }
@@ -171,19 +185,22 @@ async function updateJob(id, patch = {}) {
   return clone(next);
 }
 
-async function getJob(id) {
+async function getJob(id, ownerId) {
+  const normalizedOwnerId = normalizeOwnerId(ownerId);
   if (await ensureAiTables()) {
-    const result = await query('select * from ai_jobs where id = $1', [id]);
+    const result = await query('select * from ai_jobs where id = $1 and ($2::text is null or owner_id = $2)', [id, normalizedOwnerId]);
     return mapJobRow(result.rows[0]);
   }
 
   const job = jobs.get(id);
+  if (normalizedOwnerId && job?.ownerId !== normalizedOwnerId) return null;
   return clone(job);
 }
 
-async function createArtifact({ type, title, provider, jobId, data, meta }) {
+async function createArtifact({ type, title, provider, jobId, ownerId, data, meta }) {
   const artifact = {
     id: genId('artifact'),
+    ownerId: normalizeOwnerId(ownerId) || undefined,
     type,
     title,
     provider,
@@ -197,11 +214,12 @@ async function createArtifact({ type, title, provider, jobId, data, meta }) {
   if (await ensureAiTables()) {
     await query(
       `
-        insert into ai_artifacts (id, type, title, provider, job_id, data_json, meta_json, created_at, updated_at)
-        values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::timestamptz, $9::timestamptz)
+        insert into ai_artifacts (id, owner_id, type, title, provider, job_id, data_json, meta_json, created_at, updated_at)
+        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::timestamptz, $10::timestamptz)
       `,
       [
         artifact.id,
+        artifact.ownerId || null,
         artifact.type,
         artifact.title,
         artifact.provider,
@@ -219,32 +237,38 @@ async function createArtifact({ type, title, provider, jobId, data, meta }) {
   return clone(artifact);
 }
 
-async function getArtifact(id) {
+async function getArtifact(id, ownerId) {
+  const normalizedOwnerId = normalizeOwnerId(ownerId);
   if (await ensureAiTables()) {
-    const result = await query('select * from ai_artifacts where id = $1', [id]);
+    const result = await query('select * from ai_artifacts where id = $1 and ($2::text is null or owner_id = $2)', [id, normalizedOwnerId]);
     return mapArtifactRow(result.rows[0]);
   }
 
   const artifact = artifacts.get(id);
+  if (normalizedOwnerId && artifact?.ownerId !== normalizedOwnerId) return null;
   return clone(artifact);
 }
 
-async function getLatestArtifactByType(type) {
+async function getLatestArtifactByType(type, ownerId) {
+  const normalizedOwnerId = normalizeOwnerId(ownerId);
   if (await ensureAiTables()) {
     const result = await query(
       `
         select *
         from ai_artifacts
         where type = $1
+          and ($2::text is null or owner_id = $2)
         order by created_at desc
         limit 1
       `,
-      [type]
+      [type, normalizedOwnerId]
     );
     return mapArtifactRow(result.rows[0]);
   }
 
-  const values = [...artifacts.values()].filter((artifact) => artifact.type === type);
+  const values = [...artifacts.values()].filter(
+    (artifact) => artifact.type === type && (!normalizedOwnerId || artifact.ownerId === normalizedOwnerId)
+  );
   values.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   return values[0] ? clone(values[0]) : null;
 }

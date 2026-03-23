@@ -96,3 +96,27 @@ EXPO_PUBLIC_BACKEND_URL=http://your-backend-url
 2. 云同步
 3. AI 服务端化
 4. 抓取任务服务化
+
+## 登录态什么时候做
+
+当前推荐节奏不是一开始就强制注册登录，而是分两步：
+
+1. 先用 `Supabase Anonymous Auth`
+2. 等主链路和真机体验稳定后，再补正式账号体系
+
+这么做的原因是：
+
+- MVP 阶段最重要的是降低首次使用门槛
+- 先把导入、阅读、AI、语音这些主流程跑顺
+- 后续再把“同一用户跨设备连续使用”升级成正式能力
+
+对 EchoNote 来说，下一阶段最合适的正式登录通常会是：
+
+- iOS 优先：`Sign in with Apple`
+- 其次再补邮箱登录或其他方式
+
+当前代码已经按这个方向铺好了底：
+
+- notes 走 Supabase，并受 RLS 保护
+- mobile 会先拿匿名身份
+- AI jobs / artifacts 也开始按 `ownerId` 隔离，避免后面正式登录时历史结果混在一起
